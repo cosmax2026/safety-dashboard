@@ -263,18 +263,30 @@ async def get_summary(
                    or kw in r.get("location", "").lower()
                    or kw in r.get("improvement_plan", "").lower()]
 
-    # Detect repeated risks by content
+    # Detect repeated risks by normalized content
+    import re
     from collections import Counter
+
+    def normalize_content(text):
+        if not text:
+            return ""
+        t = text.strip()
+        t = re.sub(r'[.,!?;:\-~·…\s]+', '', t)
+        return t.lower()
+
     content_counts = Counter()
+    norm_map = {}
     for r in records:
         c = r.get("content_full", "").strip()
-        if c:
-            content_counts[c] += 1
+        norm = normalize_content(c)
+        if norm:
+            content_counts[norm] += 1
+            norm_map[id(r)] = norm
 
     # Mark repeat info on each record
     for r in records:
-        c = r.get("content_full", "").strip()
-        cnt = content_counts.get(c, 0)
+        norm = norm_map.get(id(r), "")
+        cnt = content_counts.get(norm, 0)
         r["repeat_count"] = cnt
         r["is_repeat"] = cnt >= 2
 
