@@ -263,7 +263,23 @@ async def get_summary(
                    or kw in r.get("location", "").lower()
                    or kw in r.get("improvement_plan", "").lower()]
 
+    # Detect repeated risks by content
+    from collections import Counter
+    content_counts = Counter()
+    for r in records:
+        c = r.get("content_full", "").strip()
+        if c:
+            content_counts[c] += 1
+
+    # Mark repeat info on each record
+    for r in records:
+        c = r.get("content_full", "").strip()
+        cnt = content_counts.get(c, 0)
+        r["repeat_count"] = cnt
+        r["is_repeat"] = cnt >= 2
+
     total = len(records)
+    repeat_total = sum(1 for r in records if r["is_repeat"])
 
     # Grade counts (before improvement)
     grade_a = sum(1 for r in records if r["grade_before"] == "A")
@@ -315,6 +331,7 @@ async def get_summary(
 
     return {
         "total": total,
+        "repeat_total": repeat_total,
         "grade_a": grade_a,
         "grade_b": grade_b,
         "grade_c": grade_c,

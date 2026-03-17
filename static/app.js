@@ -75,6 +75,7 @@ function getFilters() {
         person: document.getElementById("f-person").value,
         week: document.getElementById("f-week").value,
         completion: document.getElementById("f-completion").value,
+        repeat: document.getElementById("f-repeat").value,
         keyword: document.getElementById("f-keyword").value,
     };
 }
@@ -88,6 +89,7 @@ function resetFilters() {
     document.getElementById("f-person").value = "전체";
     document.getElementById("f-week").value = "0";
     document.getElementById("f-completion").value = "전체";
+    document.getElementById("f-repeat").value = "전체";
     document.getElementById("f-keyword").value = "";
     fetchSummary();
 }
@@ -127,9 +129,18 @@ async function fetchSummary() {
             document.getElementById("no-data").style.display = "none";
         }
 
+        // Client-side repeat filter
+        let displayRecords = data.records;
+        const repeatFilter = document.getElementById("f-repeat").value;
+        if (repeatFilter === "반복") {
+            displayRecords = displayRecords.filter(r => r.is_repeat);
+        } else if (repeatFilter === "단건") {
+            displayRecords = displayRecords.filter(r => !r.is_repeat);
+        }
+
         updateStats(data);
         updateCharts(data);
-        updateTable(data.records);
+        updateTable(displayRecords);
         updateFilters(data.filters);
         document.getElementById("total-badge").textContent = data.total + " cases";
     } catch (e) {
@@ -146,6 +157,7 @@ function updateStats(data) {
     document.getElementById("s-d").textContent = data.grade_d;
     document.getElementById("s-complete").textContent = data.complete;
     document.getElementById("s-pending").textContent = data.incomplete;
+    document.getElementById("s-repeat").textContent = data.repeat_total || 0;
 }
 
 // --- Charts ---
@@ -343,6 +355,7 @@ function updateTable(records) {
             <td><span class="grade-badge grade-${r.grade_before}">${r.grade_before}</span></td>
             <td><span class="grade-badge grade-${r.grade_after || "-"}">${r.grade_after || "-"}</span></td>
             <td class="${r.completion === "완료" ? "status-complete" : "status-incomplete"}">${r.completion || "-"}</td>
+            <td>${r.is_repeat ? '<span class="repeat-badge">' + r.repeat_count + '회</span>' : '<span class="repeat-badge single">1회</span>'}</td>
             <td>${r.week || "-"}</td>
         `;
         tbody.appendChild(tr);

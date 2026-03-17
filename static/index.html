@@ -86,6 +86,14 @@
                 </select>
             </div>
             <div class="filter-item">
+                <label>반복여부</label>
+                <select id="f-repeat">
+                    <option value="전체">전체</option>
+                    <option value="반복">반복</option>
+                    <option value="단건">단건</option>
+                </select>
+            </div>
+            <div class="filter-item">
                 <label>키워드</label>
                 <input type="text" id="f-keyword" placeholder="검색...">
             </div>
@@ -132,6 +140,10 @@
                     <div class="stat-label">PENDING</div>
                     <div class="stat-value red" id="s-pending">0</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-label">REPEAT</div>
+                    <div class="stat-value purple" id="s-repeat">0</div>
+                </div>
             </div>
 
             <!-- Charts Row 1 -->
@@ -175,6 +187,7 @@
                             <th>위험등급(전)</th>
                             <th>위험등급(후)</th>
                             <th>완료여부</th>
+                            <th>반복</th>
                             <th>주차</th>
                         </tr>
                     </thead>

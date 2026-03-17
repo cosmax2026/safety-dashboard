@@ -175,7 +175,7 @@ body {
 /* Stats Cards */
 .stats-cards {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(8, 1fr);
     gap: 16px;
     padding: 20px 32px;
 }
@@ -193,6 +193,18 @@ body {
 .stat-value.orange { color: #f39c12; }
 .stat-value.red { color: #e74c3c; }
 .stat-value.teal { color: #1abc9c; }
+.stat-value.purple { color: #9b59b6; }
+
+.repeat-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #9b59b6;
+    color: white;
+}
+.repeat-badge.single { background: #bdc3c7; }
 
 /* Charts */
 .tab-content { padding: 0 32px 32px; }
