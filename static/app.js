@@ -395,19 +395,105 @@ function switchTab(tabName, btn) {
     btn.classList.add("active");
 }
 
-// --- PDF Export ---
+// --- PDF Export (Multi-page A4) ---
 async function exportPDF() {
-    const el = document.getElementById("tab-overview");
-    el.style.display = "block";
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();   // 210mm
+    const pageHeight = pdf.internal.pageSize.getHeight();  // 297mm
+    const margin = 12;
+    const contentWidth = pageWidth - 2 * margin;
+    const maxContentHeight = pageHeight - 2 * margin;
+    let currentY = margin;
+
+    // Capture element as canvas image
+    async function captureElement(el) {
+        return await html2canvas(el, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+            logging: false,
+        });
+    }
+
+    // Add a captured canvas to PDF, splitting across pages if needed
+    function addCanvasToPDF(canvas) {
+        const ratio = contentWidth / canvas.width;
+        const totalImgHeight = canvas.height * ratio;
+
+        if (totalImgHeight <= maxContentHeight && currentY + totalImgHeight <= pageHeight - margin) {
+            // Fits on current page
+            pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, currentY, contentWidth, totalImgHeight);
+            currentY += totalImgHeight + 6;
+        } else if (totalImgHeight <= maxContentHeight) {
+            // Fits on one page but needs a new page
+            pdf.addPage();
+            currentY = margin;
+            pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, currentY, contentWidth, totalImgHeight);
+            currentY += totalImgHeight + 6;
+        } else {
+            // Too tall - split across multiple pages
+            let srcY = 0;
+            const srcPageHeight = maxContentHeight / ratio;
+
+            while (srcY < canvas.height) {
+                if (currentY > margin + 5) {
+                    pdf.addPage();
+                    currentY = margin;
+                }
+
+                const sliceHeight = Math.min(srcPageHeight, canvas.height - srcY);
+                const sliceCanvas = document.createElement("canvas");
+                sliceCanvas.width = canvas.width;
+                sliceCanvas.height = sliceHeight;
+                sliceCanvas.getContext("2d").drawImage(
+                    canvas, 0, srcY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight
+                );
+
+                const drawHeight = sliceHeight * ratio;
+                pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", margin, currentY, contentWidth, drawHeight);
+                currentY += drawHeight;
+                srcY += sliceHeight;
+            }
+            currentY += 6;
+        }
+    }
 
     try {
-        const canvas = await html2canvas(el, { scale: 2, useCORS: true });
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF("l", "mm", "a4");
-        const imgData = canvas.toDataURL("image/png");
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+        // Show all tab contents temporarily
+        const tabContents = document.querySelectorAll(".tab-content");
+        const savedDisplays = [];
+        tabContents.forEach(el => {
+            savedDisplays.push(el.style.display);
+            el.style.display = "block";
+        });
+
+        // Title page header
+        pdf.setFontSize(18);
+        pdf.text("Safety Risk Dashboard Report", pageWidth / 2, currentY + 8, { align: "center" });
+        pdf.setFontSize(11);
+        pdf.text(new Date().toLocaleDateString("ko-KR"), pageWidth / 2, currentY + 16, { align: "center" });
+        currentY += 24;
+
+        // 1. Stats cards
+        const statsEl = document.querySelector(".stats-cards");
+        if (statsEl) addCanvasToPDF(await captureElement(statsEl));
+
+        // 2. All chart boxes (overview + category tabs)
+        const chartBoxes = document.querySelectorAll(".chart-box");
+        for (const box of chartBoxes) {
+            addCanvasToPDF(await captureElement(box));
+        }
+
+        // 3. Data table
+        const tableEl = document.querySelector(".table-container");
+        if (tableEl) addCanvasToPDF(await captureElement(tableEl));
+
+        // Restore tab visibility
+        tabContents.forEach((el, i) => {
+            el.style.display = savedDisplays[i];
+        });
+
         pdf.save("Safety_Risk_Dashboard_Report.pdf");
     } catch (e) {
         alert("PDF 생성 실패: " + e.message);
