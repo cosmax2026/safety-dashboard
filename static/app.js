@@ -467,6 +467,61 @@ function switchTab(tabName, btn) {
     btn.classList.add("active");
 }
 
+// --- Data Management ---
+async function showManageModal() {
+    document.getElementById("manage-modal").style.display = "flex";
+    const list = document.getElementById("channel-status-list");
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">불러오는 중...</div>';
+
+    try {
+        const res = await fetch("/api/channels/status", { headers: authHeaders() });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+
+        list.innerHTML = "";
+        data.channels.forEach(ch => {
+            const count = data.counts[ch] || 0;
+            const item = document.createElement("div");
+            item.className = "channel-item";
+            item.innerHTML =
+                '<span class="channel-name">' + escapeHtml(ch) + '</span>' +
+                '<span class="channel-count ' + (count === 0 ? 'empty' : '') + '">' +
+                    (count > 0 ? count + '건' : '미업로드') +
+                '</span>' +
+                '<button class="btn-del" ' + (count === 0 ? 'disabled' : '') +
+                    ' onclick="deleteChannelData(\'' + escapeHtml(ch).replace(/'/g, "\\'") + '\')">' +
+                    '삭제</button>';
+            list.appendChild(item);
+        });
+
+        document.getElementById("manage-total").textContent = "전체 " + data.total + "건";
+    } catch (e) {
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:#e74c3c;">불러오기 실패</div>';
+    }
+}
+
+function closeManageModal() {
+    document.getElementById("manage-modal").style.display = "none";
+}
+
+async function deleteChannelData(channel) {
+    if (!confirm("[" + channel + "] 데이터를 삭제하시겠습니까?")) return;
+    try {
+        const res = await fetch("/api/channels/delete", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ channel: channel }),
+        });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        alert(data.message);
+        showManageModal();
+        fetchSummary();
+    } catch (e) {
+        alert("삭제 실패: " + e.message);
+    }
+}
+
 // --- Report Generation ---
 async function printReport() {
     const btn = document.querySelector('.btn-pdf');

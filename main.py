@@ -187,7 +187,6 @@ def parse_excel(file_path: str) -> list[dict]:
 
 
 CHANNELS = [
-    "통합본",
     "정기위험성평가(코스맥스)",
     "정기위험성평가(협력사)",
     "수시위험성평가",
@@ -232,6 +231,33 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
 async def get_channels(request: Request):
     verify_token(request)
     return {"channels": CHANNELS}
+
+
+@app.get("/api/channels/status")
+async def channel_status(request: Request):
+    verify_token(request)
+    data = load_data()
+    counts: dict[str, int] = {}
+    for r in data:
+        ch = r.get("channel", "미분류")
+        counts[ch] = counts.get(ch, 0) + 1
+    return {"channels": CHANNELS, "counts": counts, "total": len(data)}
+
+
+@app.post("/api/channels/delete")
+async def delete_channel_data(request: Request):
+    verify_token(request)
+    body = await request.json()
+    channel = body.get("channel")
+    if not channel:
+        raise HTTPException(status_code=400, detail="채널명이 필요합니다.")
+    data = load_data()
+    before = len(data)
+    data = [r for r in data if r.get("channel") != channel]
+    after = len(data)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return {"message": f"[{channel}] {before - after}건 삭제 완료", "remaining": after}
 
 
 # --- Data API ---

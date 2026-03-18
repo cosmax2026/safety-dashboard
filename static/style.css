@@ -281,6 +281,84 @@ body {
     font-size: 16px;
 }
 
+/* Manage Button */
+.btn-manage {
+    padding: 8px 16px;
+    background: #7f8c8d;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+.btn-manage:hover { background: #636e72; }
+
+/* Modal */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-box {
+    background: white;
+    padding: 28px 32px;
+    border-radius: 16px;
+    max-width: 520px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.modal-box h3 { font-size: 18px; color: #1a1a2e; margin-bottom: 4px; }
+.modal-box p { color: #888; font-size: 13px; margin-bottom: 16px; }
+.channel-list { max-height: 400px; overflow-y: auto; }
+.channel-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.channel-item:last-child { border-bottom: none; }
+.channel-name { font-size: 13px; font-weight: 600; flex: 1; }
+.channel-count { font-size: 13px; color: #333; font-weight: 700; min-width: 60px; text-align: right; margin-right: 12px; }
+.channel-count.empty { color: #ccc; font-weight: 400; }
+.btn-del {
+    padding: 4px 12px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+}
+.btn-del:hover { background: #c0392b; }
+.btn-del:disabled { background: #ddd; color: #999; cursor: default; }
+.modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #e8e8e8;
+}
+.manage-total { font-size: 13px; color: #888; }
+.modal-close {
+    padding: 8px 24px;
+    background: #2c3e50;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+.modal-close:hover { background: #1a252f; }
+
 /* Channel Select */
 .channel-select {
     padding: 8px 12px;

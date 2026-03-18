@@ -34,7 +34,6 @@
                 <span id="total-badge" class="total-badge">0 cases</span>
                 <button class="btn-pdf" onclick="printReport()">리포트 출력</button>
                 <select id="upload-channel" class="channel-select">
-                    <option value="통합본">통합본</option>
                     <option value="정기위험성평가(코스맥스)">정기위험성평가(코스맥스)</option>
                     <option value="정기위험성평가(협력사)">정기위험성평가(협력사)</option>
                     <option value="수시위험성평가">수시위험성평가</option>
@@ -45,6 +44,7 @@
                 </select>
                 <button class="btn-upload" onclick="document.getElementById('file-input').click()">업로드</button>
                 <input type="file" id="file-input" accept=".xlsx,.xlsm" style="display:none" onchange="uploadFile(this)">
+                <button class="btn-manage" onclick="showManageModal()">관리</button>
                 <button class="btn-logout" onclick="logout()">로그아웃</button>
             </div>
         </header>
@@ -237,6 +237,19 @@
         <!-- No Data Message -->
         <div id="no-data" class="no-data" style="display:none;">
             <p>데이터가 없습니다. 엑셀 파일을 업로드해주세요.</p>
+        </div>
+    </div>
+
+    <!-- Data Management Modal -->
+    <div id="manage-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>데이터 관리</h3>
+            <p>채널별 업로드 현황</p>
+            <div id="channel-status-list" class="channel-list"></div>
+            <div class="modal-footer">
+                <span id="manage-total" class="manage-total"></span>
+                <button class="modal-close" onclick="closeManageModal()">닫기</button>
+            </div>
         </div>
     </div>
 
