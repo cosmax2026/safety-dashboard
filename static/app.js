@@ -340,6 +340,73 @@ function updateCharts(data) {
             },
         }
     );
+
+    // 7. Channel charts (visible only with multi-channel data)
+    destroyChart("chart-channel");
+    destroyChart("chart-channel-grade");
+    const channelRow = document.getElementById("channel-chart-row");
+    const chStats = data.channel_stats || {};
+    const chGradeStats = data.channel_grade_stats || {};
+    const chKeys = Object.keys(chStats);
+
+    if (chKeys.length > 1) {
+        channelRow.style.display = "";
+        const chSorted = chKeys.sort((a, b) => chStats[b] - chStats[a]);
+        const chColors = chSorted.map((_, i) =>
+            ["#e74c3c", "#3498db", "#f39c12", "#27ae60", "#9b59b6", "#1abc9c", "#e67e22", "#34495e"][i % 8]
+        );
+
+        chartInstances["chart-channel"] = new Chart(
+            document.getElementById("chart-channel"),
+            {
+                type: "bar",
+                data: {
+                    labels: chSorted,
+                    datasets: [{
+                        label: "건수",
+                        data: chSorted.map(k => chStats[k]),
+                        backgroundColor: chColors,
+                        borderRadius: 4,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: "y",
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { display: false } },
+                        y: { grid: { display: false } },
+                    },
+                },
+            }
+        );
+
+        chartInstances["chart-channel-grade"] = new Chart(
+            document.getElementById("chart-channel-grade"),
+            {
+                type: "bar",
+                data: {
+                    labels: chSorted,
+                    datasets: [
+                        { label: "A등급", data: chSorted.map(k => (chGradeStats[k] || {}).A || 0), backgroundColor: GRADE_COLORS.A, borderRadius: 2 },
+                        { label: "B등급", data: chSorted.map(k => (chGradeStats[k] || {}).B || 0), backgroundColor: GRADE_COLORS.B, borderRadius: 2 },
+                        { label: "C등급", data: chSorted.map(k => (chGradeStats[k] || {}).C || 0), backgroundColor: GRADE_COLORS.C, borderRadius: 2 },
+                        { label: "D등급", data: chSorted.map(k => (chGradeStats[k] || {}).D || 0), backgroundColor: GRADE_COLORS.D, borderRadius: 2 },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: "top" } },
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true },
+                    },
+                },
+            }
+        );
+    } else {
+        channelRow.style.display = "none";
+    }
 }
 
 // --- Table ---
