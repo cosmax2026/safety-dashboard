@@ -401,9 +401,13 @@ async def get_summary(
     for r in records:
         ch = r.get("channel", "미분류")
         if ch not in channel_grade_stats:
-            channel_grade_stats[ch] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
+            channel_grade_stats[ch] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0, "complete": 0, "incomplete": 0}
         g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
         channel_grade_stats[ch][g] += 1
+        if r["completion"] == "완료":
+            channel_grade_stats[ch]["complete"] += 1
+        else:
+            channel_grade_stats[ch]["incomplete"] += 1
 
     # Filter options
     all_records = load_data()

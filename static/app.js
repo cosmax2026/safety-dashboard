@@ -404,8 +404,48 @@ function updateCharts(data) {
                 },
             }
         );
+        // Channel summary table
+        const tableWrap = document.getElementById("channel-table-wrap");
+        tableWrap.style.display = "";
+        const tbody = document.getElementById("channel-summary-tbody");
+        tbody.innerHTML = "";
+        let totalRow = { count: 0, A: 0, B: 0, C: 0, D: 0, comp: 0, incomp: 0 };
+        chSorted.forEach(ch => {
+            const g = chGradeStats[ch] || {};
+            const count = chStats[ch] || 0;
+            const A = g.A || 0, B = g.B || 0, C = g.C || 0, D = g.D || 0;
+            const comp = g.complete || 0, incomp = g.incomplete || 0;
+            totalRow.count += count; totalRow.A += A; totalRow.B += B;
+            totalRow.C += C; totalRow.D += D; totalRow.comp += comp; totalRow.incomp += incomp;
+            const tr = document.createElement("tr");
+            tr.innerHTML =
+                "<td>" + escapeHtml(ch) + "</td>" +
+                "<td><strong>" + count + "</strong></td>" +
+                '<td class="green">' + A + "</td>" +
+                '<td class="blue">' + B + "</td>" +
+                '<td class="orange">' + C + "</td>" +
+                '<td class="red">' + D + "</td>" +
+                '<td class="status-complete">' + comp + "</td>" +
+                '<td class="status-incomplete">' + incomp + "</td>";
+            tbody.appendChild(tr);
+        });
+        // Total row
+        const totalTr = document.createElement("tr");
+        totalTr.style.background = "#f0f4ff";
+        totalTr.style.fontWeight = "700";
+        totalTr.innerHTML =
+            "<td>합계</td>" +
+            "<td>" + totalRow.count + "</td>" +
+            '<td class="green">' + totalRow.A + "</td>" +
+            '<td class="blue">' + totalRow.B + "</td>" +
+            '<td class="orange">' + totalRow.C + "</td>" +
+            '<td class="red">' + totalRow.D + "</td>" +
+            '<td class="status-complete">' + totalRow.comp + "</td>" +
+            '<td class="status-incomplete">' + totalRow.incomp + "</td>";
+        tbody.appendChild(totalTr);
     } else {
         channelRow.style.display = "none";
+        document.getElementById("channel-table-wrap").style.display = "none";
     }
 }
 
