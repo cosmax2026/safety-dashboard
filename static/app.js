@@ -41,12 +41,26 @@ function authHeaders() {
     return { Authorization: "Bearer " + TOKEN };
 }
 
-// --- Upload ---
+// --- Upload with Channel ---
+function showUploadModal() {
+    document.getElementById("upload-modal").style.display = "flex";
+}
+function closeUploadModal() {
+    document.getElementById("upload-modal").style.display = "none";
+}
+function selectChannel(channel) {
+    closeUploadModal();
+    window.__uploadChannel = channel;
+    document.getElementById("file-input").click();
+}
+
 async function uploadFile(input) {
     const file = input.files[0];
     if (!file) return;
+    const channel = window.__uploadChannel || "안전점검";
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("channel", channel);
 
     try {
         const res = await fetch("/api/upload", {
@@ -62,11 +76,13 @@ async function uploadFile(input) {
         alert("업로드 실패: " + e.message);
     }
     input.value = "";
+    window.__uploadChannel = null;
 }
 
 // --- Filters ---
 function getFilters() {
     return {
+        channel: document.getElementById("f-channel").value,
         month: document.getElementById("f-month").value,
         location: document.getElementById("f-location").value,
         grade: document.getElementById("f-grade").value,
@@ -81,6 +97,7 @@ function getFilters() {
 }
 
 function resetFilters() {
+    document.getElementById("f-channel").value = "전체";
     document.getElementById("f-month").value = "전체";
     document.getElementById("f-location").value = "전체";
     document.getElementById("f-grade").value = "전체";
@@ -369,6 +386,7 @@ function escapeHtml(str) {
 
 // --- Filters Update ---
 function updateFilters(filters) {
+    if (filters.channels) populateFilter("f-channel", filters.channels, true);
     populateFilter("f-month", filters.months, true);
     populateFilter("f-location", filters.locations, true);
     populateFilter("f-disaster", filters.disaster_types, true);
@@ -395,28 +413,32 @@ function switchTab(tabName, btn) {
     btn.classList.add("active");
 }
 
-// --- Print Report (browser print preview) ---
-function printReport() {
-    // Show all tab contents for printing
-    const tabContents = document.querySelectorAll(".tab-content");
-    const savedDisplays = [];
-    tabContents.forEach(el => {
-        savedDisplays.push(el.style.display);
-        el.style.display = "block";
-    });
-
-    // Hide non-print elements
-    document.body.classList.add("printing");
-
-    window.print();
-
-    // Restore after print dialog closes
-    setTimeout(() => {
-        document.body.classList.remove("printing");
-        tabContents.forEach((el, i) => {
-            el.style.display = savedDisplays[i];
+// --- Report Generation ---
+async function printReport() {
+    const btn = document.querySelector('.btn-pdf');
+    btn.textContent = '생성 중...';
+    btn.disabled = true;
+    try {
+        const filters = getFilters();
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => {
+            if (v && v !== "전체" && v !== "0") params.append(k, v);
         });
-    }, 500);
+        const res = await fetch("/api/summary?" + params.toString(), { headers: authHeaders() });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        if (!data.records || data.records.length === 0) {
+            alert('리포트를 생성할 데이터가 없습니다.');
+            return;
+        }
+        window.__reportData = data;
+        window.open("/static/report.html#" + encodeURIComponent(TOKEN), "_blank");
+    } catch (e) {
+        alert('리포트 생성 실패: ' + e.message);
+    } finally {
+        btn.textContent = '리포트 출력';
+        btn.disabled = false;
+    }
 }
 
 // --- Init ---

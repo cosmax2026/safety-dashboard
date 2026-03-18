@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, date
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Response
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -186,8 +186,19 @@ def parse_excel(file_path: str) -> list[dict]:
     return all_records
 
 
+CHANNELS = [
+    "정기위험성평가(코스맥스)",
+    "정기위험성평가(협력사)",
+    "수시위험성평가",
+    "안전점검",
+    "부서별 위험요소발굴",
+    "근로자 제안",
+    "5S/EHS평가",
+]
+
+
 @app.post("/api/upload")
-async def upload_excel(request: Request, file: UploadFile = File(...)):
+async def upload_excel(request: Request, file: UploadFile = File(...), channel: str = Form("안전점검")):
     verify_token(request)
 
     if not file.filename.endswith((".xlsx", ".xlsm")):
@@ -203,10 +214,23 @@ async def upload_excel(request: Request, file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"엑셀 파싱 오류: {str(e)}")
 
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(records, f, ensure_ascii=False, indent=2)
+    for r in records:
+        r["channel"] = channel
 
-    return {"message": f"{len(records)}건의 데이터를 업로드했습니다.", "count": len(records)}
+    existing = load_data()
+    existing = [r for r in existing if r.get("channel") != channel]
+    existing.extend(records)
+
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(existing, f, ensure_ascii=False, indent=2)
+
+    return {"message": f"[{channel}] {len(records)}건 업로드 완료 (전체 {len(existing)}건)", "count": len(records)}
+
+
+@app.get("/api/channels")
+async def get_channels(request: Request):
+    verify_token(request)
+    return {"channels": CHANNELS}
 
 
 # --- Data API ---
@@ -214,7 +238,11 @@ def load_data() -> list[dict]:
     if not os.path.exists(DATA_FILE):
         return []
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    for r in data:
+        if "channel" not in r:
+            r["channel"] = "안전점검"
+    return data
 
 
 @app.get("/api/data")
@@ -227,6 +255,7 @@ async def get_data(request: Request):
 @app.get("/api/summary")
 async def get_summary(
     request: Request,
+    channel: Optional[str] = None,
     month: Optional[str] = None,
     location: Optional[str] = None,
     grade: Optional[str] = None,
@@ -241,6 +270,8 @@ async def get_summary(
     records = load_data()
 
     # Apply filters
+    if channel and channel != "전체":
+        records = [r for r in records if r.get("channel") == channel]
     if month and month != "전체":
         records = [r for r in records if r["month"] == month]
     if location and location != "전체":
@@ -332,8 +363,24 @@ async def get_summary(
         p = r["process"] if r["process"] else "미분류"
         process_stats[p] = process_stats.get(p, 0) + 1
 
+    # By channel
+    channel_stats: dict[str, int] = {}
+    for r in records:
+        ch = r.get("channel", "미분류")
+        channel_stats[ch] = channel_stats.get(ch, 0) + 1
+
+    # Channel-grade breakdown
+    channel_grade_stats: dict[str, dict[str, int]] = {}
+    for r in records:
+        ch = r.get("channel", "미분류")
+        if ch not in channel_grade_stats:
+            channel_grade_stats[ch] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
+        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
+        channel_grade_stats[ch][g] += 1
+
     # Filter options
     all_records = load_data()
+    channels = sorted(set(r.get("channel", "미분류") for r in all_records))
     months = sorted(set(r["month"] for r in all_records))
     locations = sorted(set(r["location_group"] for r in all_records))
     disaster_types = sorted(set(r["disaster_type"] for r in all_records if r["disaster_type"]))
@@ -354,8 +401,11 @@ async def get_summary(
         "week_stats": week_stats,
         "disaster_stats": disaster_stats,
         "process_stats": process_stats,
+        "channel_stats": channel_stats,
+        "channel_grade_stats": channel_grade_stats,
         "records": records,
         "filters": {
+            "channels": channels,
             "months": months,
             "locations": locations,
             "disaster_types": disaster_types,

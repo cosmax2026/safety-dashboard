@@ -33,7 +33,7 @@
             <div class="header-right">
                 <span id="total-badge" class="total-badge">0 cases</span>
                 <button class="btn-pdf" onclick="printReport()">리포트 출력</button>
-                <button class="btn-upload" onclick="document.getElementById('file-input').click()">엑셀 업로드</button>
+                <button class="btn-upload" onclick="showUploadModal()">엑셀 업로드</button>
                 <input type="file" id="file-input" accept=".xlsx,.xlsm" style="display:none" onchange="uploadFile(this)">
                 <button class="btn-logout" onclick="logout()">로그아웃</button>
             </div>
@@ -41,6 +41,10 @@
 
         <!-- Filters -->
         <div class="filter-bar">
+            <div class="filter-item">
+                <label>채널</label>
+                <select id="f-channel"><option value="전체">전체</option></select>
+            </div>
             <div class="filter-item">
                 <label>월</label>
                 <select id="f-month"><option value="전체">전체</option></select>
@@ -211,6 +215,24 @@
         <!-- No Data Message -->
         <div id="no-data" class="no-data" style="display:none;">
             <p>데이터가 없습니다. 엑셀 파일을 업로드해주세요.</p>
+        </div>
+    </div>
+
+    <!-- Upload Channel Modal -->
+    <div id="upload-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>업로드 채널 선택</h3>
+            <p>엑셀 파일을 업로드할 채널을 선택하세요</p>
+            <div class="channel-grid">
+                <button class="channel-btn" onclick="selectChannel('정기위험성평가(코스맥스)')">정기위험성평가<br>(코스맥스)</button>
+                <button class="channel-btn" onclick="selectChannel('정기위험성평가(협력사)')">정기위험성평가<br>(협력사)</button>
+                <button class="channel-btn" onclick="selectChannel('수시위험성평가')">수시위험성평가</button>
+                <button class="channel-btn" onclick="selectChannel('안전점검')">안전점검</button>
+                <button class="channel-btn" onclick="selectChannel('부서별 위험요소발굴')">부서별<br>위험요소발굴</button>
+                <button class="channel-btn" onclick="selectChannel('근로자 제안')">근로자 제안</button>
+                <button class="channel-btn" onclick="selectChannel('5S/EHS평가')">5S/EHS평가</button>
+            </div>
+            <button class="modal-cancel" onclick="closeUploadModal()">취소</button>
         </div>
     </div>
 
