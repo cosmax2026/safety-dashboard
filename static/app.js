@@ -41,23 +41,11 @@ function authHeaders() {
     return { Authorization: "Bearer " + TOKEN };
 }
 
-// --- Upload with Channel ---
-function showUploadModal() {
-    document.getElementById("upload-modal").style.display = "flex";
-}
-function closeUploadModal() {
-    document.getElementById("upload-modal").style.display = "none";
-}
-function selectChannel(channel) {
-    closeUploadModal();
-    window.__uploadChannel = channel;
-    document.getElementById("file-input").click();
-}
-
+// --- Upload ---
 async function uploadFile(input) {
     const file = input.files[0];
     if (!file) return;
-    const channel = window.__uploadChannel || "안전점검";
+    const channel = document.getElementById("upload-channel").value;
     const formData = new FormData();
     formData.append("file", file);
     formData.append("channel", channel);
@@ -76,7 +64,6 @@ async function uploadFile(input) {
         alert("업로드 실패: " + e.message);
     }
     input.value = "";
-    window.__uploadChannel = null;
 }
 
 // --- Filters ---
