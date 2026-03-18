@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Safety Risk Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=2">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -61,15 +61,15 @@
             </div>
             <div class="filter-item">
                 <label>월</label>
-                <select id="f-month"><option value="전체">전체</option></select>
+                <select id="f-month" onchange="fetchSummary()"><option value="전체">전체</option></select>
             </div>
             <div class="filter-item">
                 <label>장소</label>
-                <select id="f-location"><option value="전체">전체</option></select>
+                <select id="f-location" onchange="fetchSummary()"><option value="전체">전체</option></select>
             </div>
             <div class="filter-item">
                 <label>등급</label>
-                <select id="f-grade">
+                <select id="f-grade" onchange="fetchSummary()">
                     <option value="전체">전체</option>
                     <option value="A">A등급</option>
                     <option value="B">B등급</option>
@@ -79,23 +79,23 @@
             </div>
             <div class="filter-item">
                 <label>재해유형</label>
-                <select id="f-disaster"><option value="전체">전체</option></select>
+                <select id="f-disaster" onchange="fetchSummary()"><option value="전체">전체</option></select>
             </div>
             <div class="filter-item">
                 <label>공정</label>
-                <select id="f-process"><option value="전체">전체</option></select>
+                <select id="f-process" onchange="fetchSummary()"><option value="전체">전체</option></select>
             </div>
             <div class="filter-item">
                 <label>담당자</label>
-                <select id="f-person"><option value="전체">전체</option></select>
+                <select id="f-person" onchange="fetchSummary()"><option value="전체">전체</option></select>
             </div>
             <div class="filter-item">
                 <label>주차</label>
-                <select id="f-week"><option value="0">전체</option></select>
+                <select id="f-week" onchange="fetchSummary()"><option value="0">전체</option></select>
             </div>
             <div class="filter-item">
                 <label>완료여부</label>
-                <select id="f-completion">
+                <select id="f-completion" onchange="fetchSummary()">
                     <option value="전체">전체</option>
                     <option value="완료">완료</option>
                     <option value="미완료">미완료</option>
@@ -103,7 +103,7 @@
             </div>
             <div class="filter-item">
                 <label>반복여부</label>
-                <select id="f-repeat">
+                <select id="f-repeat" onchange="fetchSummary()">
                     <option value="전체">전체</option>
                     <option value="반복">반복</option>
                     <option value="단건">단건</option>
@@ -111,7 +111,7 @@
             </div>
             <div class="filter-item">
                 <label>키워드</label>
-                <input type="text" id="f-keyword" placeholder="검색...">
+                <input type="text" id="f-keyword" placeholder="검색..." onkeydown="if(event.key==='Enter') fetchSummary()">
             </div>
             <button class="btn-search" onclick="fetchSummary()">검색</button>
             <button class="btn-reset" onclick="resetFilters()">초기화</button>
@@ -282,6 +282,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2"></script>
 </body>
 </html>

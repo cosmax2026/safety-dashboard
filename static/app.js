@@ -67,41 +67,52 @@ async function uploadFile(input) {
 }
 
 // --- Filters ---
+function getFilterValue(id, fallback) {
+    const el = document.getElementById(id);
+    return el ? el.value : (fallback || "전체");
+}
+
 function getFilters() {
     return {
-        channel: document.getElementById("f-channel").value,
-        year: document.getElementById("f-year").value,
-        month: document.getElementById("f-month").value,
-        location: document.getElementById("f-location").value,
-        grade: document.getElementById("f-grade").value,
-        disaster_type: document.getElementById("f-disaster").value,
-        process: document.getElementById("f-process").value,
-        person: document.getElementById("f-person").value,
-        week: document.getElementById("f-week").value,
-        completion: document.getElementById("f-completion").value,
-        repeat: document.getElementById("f-repeat").value,
-        keyword: document.getElementById("f-keyword").value,
+        channel: getFilterValue("f-channel"),
+        year: getFilterValue("f-year"),
+        month: getFilterValue("f-month"),
+        location: getFilterValue("f-location"),
+        grade: getFilterValue("f-grade"),
+        disaster_type: getFilterValue("f-disaster"),
+        process: getFilterValue("f-process"),
+        person: getFilterValue("f-person"),
+        week: getFilterValue("f-week", "0"),
+        completion: getFilterValue("f-completion"),
+        repeat: getFilterValue("f-repeat"),
+        keyword: (document.getElementById("f-keyword") || {}).value || "",
     };
 }
 
+function setFilterValue(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+}
+
 function resetFilters() {
-    document.getElementById("f-channel").value = "전체";
-    document.getElementById("f-year").value = "전체";
-    document.getElementById("f-month").value = "전체";
-    document.getElementById("f-location").value = "전체";
-    document.getElementById("f-grade").value = "전체";
-    document.getElementById("f-disaster").value = "전체";
-    document.getElementById("f-process").value = "전체";
-    document.getElementById("f-person").value = "전체";
-    document.getElementById("f-week").value = "0";
-    document.getElementById("f-completion").value = "전체";
-    document.getElementById("f-repeat").value = "전체";
-    document.getElementById("f-keyword").value = "";
+    setFilterValue("f-channel", "전체");
+    setFilterValue("f-year", "전체");
+    setFilterValue("f-month", "전체");
+    setFilterValue("f-location", "전체");
+    setFilterValue("f-grade", "전체");
+    setFilterValue("f-disaster", "전체");
+    setFilterValue("f-process", "전체");
+    setFilterValue("f-person", "전체");
+    setFilterValue("f-week", "0");
+    setFilterValue("f-completion", "전체");
+    setFilterValue("f-repeat", "전체");
+    setFilterValue("f-keyword", "");
     fetchSummary();
 }
 
 function populateFilter(selectId, options, keepValue) {
     const sel = document.getElementById(selectId);
+    if (!sel || !options) return;
     const prev = sel.value;
     const defaultOption = sel.options[0].outerHTML;
     sel.innerHTML = defaultOption;
@@ -165,12 +176,14 @@ function updateStats(data) {
     document.getElementById("s-pending").textContent = data.incomplete;
     document.getElementById("s-repeat").textContent = data.repeat_total || 0;
     const rate = data.improvement_rate != null ? data.improvement_rate : 0;
-    document.getElementById("s-improvement").textContent = rate + "%";
     const rateEl = document.getElementById("s-improvement");
-    rateEl.className = "stat-value improvement-rate";
-    if (rate >= 80) rateEl.classList.add("high");
-    else if (rate >= 50) rateEl.classList.add("mid");
-    else rateEl.classList.add("low");
+    if (rateEl) {
+        rateEl.textContent = rate + "%";
+        rateEl.className = "stat-value improvement-rate";
+        if (rate >= 80) rateEl.classList.add("high");
+        else if (rate >= 50) rateEl.classList.add("mid");
+        else rateEl.classList.add("low");
+    }
 }
 
 // --- Charts ---

@@ -301,7 +301,7 @@ async def get_summary(
     if channel and channel != "전체":
         records = [r for r in records if r.get("channel") == channel]
     if year and year != "전체":
-        records = [r for r in records if r.get("date", "")[:4] == year]
+        records = [r for r in records if (r.get("date") or "")[:4] == year]
     if month and month != "전체":
         records = [r for r in records if r["month"] == month]
     if location and location != "전체":
