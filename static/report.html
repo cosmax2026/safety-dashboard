@@ -191,8 +191,8 @@
         html += '</tbody></table>';
 
         // Section 3: Company Analysis
-        html += '<h2 class="section-title">3. 업체별 위험요소 현황</h2>';
-        html += '<div class="chart-box"><h3>업체별 위험요소 건수</h3><div class="bar-chart">';
+        html += '<h2 class="section-title">3. 구분별 위험요소 현황</h2>';
+        html += '<div class="chart-box"><h3>구분별 위험요소 건수</h3><div class="bar-chart">';
         companies.forEach(c => {
             html += '<div class="bar-row">';
             html += '<div class="bar-label">' + esc(c.name) + '</div>';
@@ -201,7 +201,7 @@
             html += '</div>';
         });
         html += '</div></div>';
-        html += '<table class="rtable"><thead><tr><th>업체</th><th>건수</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th></tr></thead><tbody>';
+        html += '<table class="rtable"><thead><tr><th>구분</th><th>건수</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th></tr></thead><tbody>';
         companies.forEach(c => {
             html += '<tr><td>' + esc(c.name) + '</td><td>' + c.total + '</td><td>' + c.A + '</td><td>' + c.B + '</td><td>' + c.C + '</td><td>' + c.D + '</td><td>0</td></tr>';
         });
@@ -213,7 +213,7 @@
         html += '<div class="chart-box"><h3>위험등급별 분포</h3><canvas id="c-grade"></canvas></div>';
         html += '<div class="chart-box"><h3>주차별 위험요소 발굴 현황</h3><canvas id="c-weekly"></canvas></div>';
         html += '</div>';
-        html += '<div class="chart-box"><h3>업체별 위험등급별 현황</h3><canvas id="c-stacked"></canvas></div>';
+        html += '<div class="chart-box"><h3>구분별 위험등급별 현황</h3><canvas id="c-stacked"></canvas></div>';
 
         // Section 4: Category Analysis
         html += '<h2 class="section-title">5. 유형별 위험요소 분석</h2>';
@@ -229,7 +229,7 @@
 
         // Section 5: High Risk Items
         html += '<h2 class="section-title">6. 고위험 항목 (D/E/F등급) -' + highRisk.length + '건</h2>';
-        html += '<table class="rtable"><thead><tr><th>업체</th><th>발견일</th><th>장소</th><th>위험요소 내용</th><th>등급</th><th>점수</th><th>완료</th></tr></thead><tbody>';
+        html += '<table class="rtable"><thead><tr><th>구분</th><th>발견일</th><th>장소</th><th>위험요소 내용</th><th>등급</th><th>점수</th><th>완료</th></tr></thead><tbody>';
         highRisk.forEach(r => {
             html += '<tr>';
             html += '<td>' + esc(r.location_group || '-') + '</td>';
@@ -245,7 +245,7 @@
 
         // Section 6: Repeated Risks
         html += '<h2 class="section-title">7. 반복 출현 위험요소 TOP 10</h2>';
-        html += '<table class="rtable"><thead><tr><th>위험요소 내용</th><th>반복 횟수</th><th>해당 업체</th></tr></thead><tbody>';
+        html += '<table class="rtable"><thead><tr><th>위험요소 내용</th><th>반복 횟수</th><th>해당 구분</th></tr></thead><tbody>';
         repeats.forEach(r => {
             html += '<tr>';
             html += '<td class="wrap-cell">' + esc(r.content) + '</td>';

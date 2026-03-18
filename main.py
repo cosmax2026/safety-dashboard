@@ -187,6 +187,7 @@ def parse_excel(file_path: str) -> list[dict]:
 
 
 CHANNELS = [
+    "통합본",
     "정기위험성평가(코스맥스)",
     "정기위험성평가(협력사)",
     "수시위험성평가",
