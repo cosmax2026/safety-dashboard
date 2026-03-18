@@ -283,6 +283,7 @@ async def get_data(request: Request):
 async def get_summary(
     request: Request,
     channel: Optional[str] = None,
+    year: Optional[str] = None,
     month: Optional[str] = None,
     location: Optional[str] = None,
     grade: Optional[str] = None,
@@ -299,6 +300,8 @@ async def get_summary(
     # Apply filters
     if channel and channel != "전체":
         records = [r for r in records if r.get("channel") == channel]
+    if year and year != "전체":
+        records = [r for r in records if r.get("date", "")[:4] == year]
     if month and month != "전체":
         records = [r for r in records if r["month"] == month]
     if location and location != "전체":
@@ -359,6 +362,7 @@ async def get_summary(
 
     complete = sum(1 for r in records if r["completion"] == "완료")
     incomplete = sum(1 for r in records if r["completion"] != "완료")
+    improvement_rate = round(complete / total * 100, 1) if total > 0 else 0
 
     # By location group
     location_stats: dict[str, dict[str, int]] = {}
@@ -412,6 +416,7 @@ async def get_summary(
     # Filter options
     all_records = load_data()
     channels = sorted(set(r.get("channel", "미분류") for r in all_records))
+    years = sorted(set(r["date"][:4] for r in all_records if r.get("date") and len(r["date"]) >= 4))
     months = sorted(set(r["month"] for r in all_records))
     locations = sorted(set(r["location_group"] for r in all_records))
     disaster_types = sorted(set(r["disaster_type"] for r in all_records if r["disaster_type"]))
@@ -421,6 +426,7 @@ async def get_summary(
 
     return {
         "total": total,
+        "improvement_rate": improvement_rate,
         "repeat_total": repeat_total,
         "grade_a": grade_a,
         "grade_b": grade_b,
@@ -437,6 +443,7 @@ async def get_summary(
         "records": records,
         "filters": {
             "channels": channels,
+            "years": years,
             "months": months,
             "locations": locations,
             "disaster_types": disaster_types,

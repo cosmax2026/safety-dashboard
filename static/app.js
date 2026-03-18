@@ -70,6 +70,7 @@ async function uploadFile(input) {
 function getFilters() {
     return {
         channel: document.getElementById("f-channel").value,
+        year: document.getElementById("f-year").value,
         month: document.getElementById("f-month").value,
         location: document.getElementById("f-location").value,
         grade: document.getElementById("f-grade").value,
@@ -85,6 +86,7 @@ function getFilters() {
 
 function resetFilters() {
     document.getElementById("f-channel").value = "전체";
+    document.getElementById("f-year").value = "전체";
     document.getElementById("f-month").value = "전체";
     document.getElementById("f-location").value = "전체";
     document.getElementById("f-grade").value = "전체";
@@ -162,6 +164,13 @@ function updateStats(data) {
     document.getElementById("s-complete").textContent = data.complete;
     document.getElementById("s-pending").textContent = data.incomplete;
     document.getElementById("s-repeat").textContent = data.repeat_total || 0;
+    const rate = data.improvement_rate != null ? data.improvement_rate : 0;
+    document.getElementById("s-improvement").textContent = rate + "%";
+    const rateEl = document.getElementById("s-improvement");
+    rateEl.className = "stat-value improvement-rate";
+    if (rate >= 80) rateEl.classList.add("high");
+    else if (rate >= 50) rateEl.classList.add("mid");
+    else rateEl.classList.add("low");
 }
 
 // --- Charts ---
@@ -415,6 +424,7 @@ function updateCharts(data) {
             const count = chStats[ch] || 0;
             const A = g.A || 0, B = g.B || 0, C = g.C || 0, D = g.D || 0;
             const comp = g.complete || 0, incomp = g.incomplete || 0;
+            const chRate = count > 0 ? (comp / count * 100).toFixed(1) : 0;
             totalRow.count += count; totalRow.A += A; totalRow.B += B;
             totalRow.C += C; totalRow.D += D; totalRow.comp += comp; totalRow.incomp += incomp;
             const tr = document.createElement("tr");
@@ -426,10 +436,12 @@ function updateCharts(data) {
                 '<td class="orange">' + C + "</td>" +
                 '<td class="red">' + D + "</td>" +
                 '<td class="status-complete">' + comp + "</td>" +
-                '<td class="status-incomplete">' + incomp + "</td>";
+                '<td class="status-incomplete">' + incomp + "</td>" +
+                '<td style="font-weight:600;color:' + (chRate >= 80 ? '#27ae60' : chRate >= 50 ? '#f39c12' : '#e74c3c') + '">' + chRate + '%</td>';
             tbody.appendChild(tr);
         });
         // Total row
+        const totalRate = totalRow.count > 0 ? (totalRow.comp / totalRow.count * 100).toFixed(1) : 0;
         const totalTr = document.createElement("tr");
         totalTr.style.background = "#f0f4ff";
         totalTr.style.fontWeight = "700";
@@ -441,7 +453,8 @@ function updateCharts(data) {
             '<td class="orange">' + totalRow.C + "</td>" +
             '<td class="red">' + totalRow.D + "</td>" +
             '<td class="status-complete">' + totalRow.comp + "</td>" +
-            '<td class="status-incomplete">' + totalRow.incomp + "</td>";
+            '<td class="status-incomplete">' + totalRow.incomp + "</td>" +
+            '<td style="color:' + (totalRate >= 80 ? '#27ae60' : totalRate >= 50 ? '#f39c12' : '#e74c3c') + '">' + totalRate + '%</td>';
         tbody.appendChild(totalTr);
     } else {
         channelRow.style.display = "none";
@@ -481,6 +494,7 @@ function escapeHtml(str) {
 // --- Filters Update ---
 function updateFilters(filters) {
     if (filters.channels) populateFilter("f-channel", filters.channels, true);
+    if (filters.years) populateFilter("f-year", filters.years, true);
     populateFilter("f-month", filters.months, true);
     populateFilter("f-location", filters.locations, true);
     populateFilter("f-disaster", filters.disaster_types, true);

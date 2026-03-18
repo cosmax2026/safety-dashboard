@@ -175,7 +175,7 @@ body {
 /* Stats Cards */
 .stats-cards {
     display: grid;
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns: repeat(9, 1fr);
     gap: 16px;
     padding: 20px 32px;
 }
@@ -194,6 +194,10 @@ body {
 .stat-value.red { color: #e74c3c; }
 .stat-value.teal { color: #1abc9c; }
 .stat-value.purple { color: #9b59b6; }
+.stat-value.improvement-rate { font-size: 28px; }
+.stat-value.improvement-rate.high { color: #27ae60; }
+.stat-value.improvement-rate.mid { color: #f39c12; }
+.stat-value.improvement-rate.low { color: #e74c3c; }
 
 .repeat-badge {
     display: inline-block;
@@ -386,7 +390,7 @@ td.red { color: #e74c3c; font-weight: 600; }
 
 /* Responsive */
 @media (max-width: 1200px) {
-    .stats-cards { grid-template-columns: repeat(4, 1fr); }
+    .stats-cards { grid-template-columns: repeat(3, 1fr); }
     .chart-row { grid-template-columns: 1fr; }
     .chart-row:last-child { grid-template-columns: 1fr; }
 }

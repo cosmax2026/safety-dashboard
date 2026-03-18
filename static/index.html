@@ -56,6 +56,10 @@
                 <select id="f-channel" onchange="fetchSummary()"><option value="전체">전체</option></select>
             </div>
             <div class="filter-item">
+                <label>년도</label>
+                <select id="f-year" onchange="fetchSummary()"><option value="전체">전체</option></select>
+            </div>
+            <div class="filter-item">
                 <label>월</label>
                 <select id="f-month"><option value="전체">전체</option></select>
             </div>
@@ -156,6 +160,10 @@
                     <div class="stat-label">REPEAT</div>
                     <div class="stat-value purple" id="s-repeat">0</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-label">개선률</div>
+                    <div class="stat-value improvement-rate" id="s-improvement">0%</div>
+                </div>
             </div>
 
             <!-- Charts Row 1 -->
@@ -208,6 +216,7 @@
                             <th>D등급</th>
                             <th>완료</th>
                             <th>미완료</th>
+                            <th>개선률</th>
                         </tr>
                     </thead>
                     <tbody id="channel-summary-tbody"></tbody>
