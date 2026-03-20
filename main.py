@@ -22,7 +22,7 @@ app.add_middleware(
 
 UPLOAD_DIR = "uploads"
 DATA_FILE = os.path.join(UPLOAD_DIR, "current_data.json")
-PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "safety2026")
+PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "2026")
 SESSION_TOKENS: set[str] = set()
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
