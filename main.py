@@ -97,8 +97,47 @@ def extract_location_group(location: str) -> str:
 
 
 
+def extract_sheet_images(ws) -> dict[int, str]:
+    """Extract embedded images from worksheet, return {row_number: image_url}."""
+    image_map: dict[int, str] = {}
+    for img in getattr(ws, '_images', []):
+        try:
+            anchor = img.anchor
+            row = None
+            if hasattr(anchor, '_from'):
+                row = anchor._from.row + 1  # openpyxl uses 0-based row
+            if row is None:
+                continue
+
+            img_bytes = img._data()
+            if not img_bytes:
+                continue
+
+            # Detect format from magic bytes
+            ext = '.png'
+            if img_bytes[:2] == b'\xff\xd8':
+                ext = '.jpg'
+            elif img_bytes[:4] == b'GIF8':
+                ext = '.gif'
+            elif img_bytes[:4] == b'RIFF':
+                ext = '.webp'
+
+            fname = f"{uuid.uuid4().hex}{ext}"
+            fpath = os.path.join(IMAGE_DIR, fname)
+            with open(fpath, "wb") as f:
+                f.write(img_bytes)
+
+            # Only keep first image per row
+            if row not in image_map:
+                image_map[row] = f"/uploads/images/{fname}"
+        except Exception:
+            continue
+    return image_map
+
+
 def parse_excel(file_path: str) -> list[dict]:
-    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    # read_only=False to support embedded image extraction
+    wb = openpyxl.load_workbook(file_path, data_only=True)
     all_records = []
 
     target_sheets = [s for s in wb.sheetnames if s != "미완료"]
@@ -107,7 +146,13 @@ def parse_excel(file_path: str) -> list[dict]:
         ws = wb[sheet_name]
         month_label = sheet_name
 
-        for row in ws.iter_rows(min_row=7, max_row=ws.max_row, values_only=True):
+        # Extract embedded images mapped to row numbers
+        image_map = extract_sheet_images(ws)
+
+        for row_num, row in enumerate(
+            ws.iter_rows(min_row=7, max_row=ws.max_row, values_only=True),
+            start=7,
+        ):
             if not row or len(row) < 27:
                 continue
 
@@ -184,6 +229,7 @@ def parse_excel(file_path: str) -> list[dict]:
                 "note": note,
                 "tracking_manager": tracking_manager,
                 "week": week,
+                "image": image_map.get(row_num, ""),
             }
             all_records.append(record)
 
