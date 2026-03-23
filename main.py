@@ -366,6 +366,12 @@ async def get_summary(
     incomplete = sum(1 for r in records if r["completion"] != "완료")
     improvement_rate = round(complete / total * 100, 1) if total > 0 else 0
 
+    # Grade before vs after (for improvement comparison)
+    grade_after_a = sum(1 for r in records if r.get("grade_after") == "A")
+    grade_after_b = sum(1 for r in records if r.get("grade_after") == "B")
+    grade_after_c = sum(1 for r in records if r.get("grade_after") == "C")
+    grade_after_d = sum(1 for r in records if r.get("grade_after") == "D")
+
     # By location group
     location_stats: dict[str, dict[str, int]] = {}
     for r in records:
@@ -462,6 +468,10 @@ async def get_summary(
         "grade_b": grade_b,
         "grade_c": grade_c,
         "grade_d": grade_d,
+        "grade_after_a": grade_after_a,
+        "grade_after_b": grade_after_b,
+        "grade_after_c": grade_after_c,
+        "grade_after_d": grade_after_d,
         "complete": complete,
         "incomplete": incomplete,
         "location_stats": location_stats,

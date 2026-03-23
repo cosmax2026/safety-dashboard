@@ -291,60 +291,28 @@ function updateCharts(data) {
     // 1. Location bar chart
     renderLocationChart(data);
 
-    // 2. Grade trend line chart
+    // 2. Grade before vs after comparison
     destroyChart("chart-grade");
-    const gradeTrend = data.grade_trend || {};
-    const trendMonths = Object.keys(gradeTrend);
     chartInstances["chart-grade"] = new Chart(
         document.getElementById("chart-grade"),
         {
-            type: "line",
+            type: "bar",
             data: {
-                labels: trendMonths,
+                labels: ["D등급", "C등급", "B등급", "A등급"],
                 datasets: [
                     {
-                        label: "A등급",
-                        data: trendMonths.map(m => gradeTrend[m].A || 0),
-                        borderColor: GRADE_COLORS.A,
-                        backgroundColor: GRADE_COLORS.A + "33",
-                        borderWidth: 2.5,
-                        pointRadius: 5,
-                        pointBackgroundColor: GRADE_COLORS.A,
-                        tension: 0.3,
-                        fill: false,
+                        label: "개선 전",
+                        data: [data.grade_d, data.grade_c, data.grade_b, data.grade_a],
+                        backgroundColor: ["#e74c3c99", "#f39c1299", "#3498db99", "#27ae6099"],
+                        borderColor: [GRADE_COLORS.D, GRADE_COLORS.C, GRADE_COLORS.B, GRADE_COLORS.A],
+                        borderWidth: 2,
+                        borderRadius: 4,
                     },
                     {
-                        label: "B등급",
-                        data: trendMonths.map(m => gradeTrend[m].B || 0),
-                        borderColor: GRADE_COLORS.B,
-                        backgroundColor: GRADE_COLORS.B + "33",
-                        borderWidth: 2.5,
-                        pointRadius: 5,
-                        pointBackgroundColor: GRADE_COLORS.B,
-                        tension: 0.3,
-                        fill: false,
-                    },
-                    {
-                        label: "C등급",
-                        data: trendMonths.map(m => gradeTrend[m].C || 0),
-                        borderColor: GRADE_COLORS.C,
-                        backgroundColor: GRADE_COLORS.C + "33",
-                        borderWidth: 2.5,
-                        pointRadius: 5,
-                        pointBackgroundColor: GRADE_COLORS.C,
-                        tension: 0.3,
-                        fill: false,
-                    },
-                    {
-                        label: "D등급",
-                        data: trendMonths.map(m => gradeTrend[m].D || 0),
-                        borderColor: GRADE_COLORS.D,
-                        backgroundColor: GRADE_COLORS.D + "33",
-                        borderWidth: 2.5,
-                        pointRadius: 5,
-                        pointBackgroundColor: GRADE_COLORS.D,
-                        tension: 0.3,
-                        fill: false,
+                        label: "개선 후",
+                        data: [data.grade_after_d, data.grade_after_c, data.grade_after_b, data.grade_after_a],
+                        backgroundColor: [GRADE_COLORS.D, GRADE_COLORS.C, GRADE_COLORS.B, GRADE_COLORS.A],
+                        borderRadius: 4,
                     },
                 ],
             },
@@ -354,20 +322,20 @@ function updateCharts(data) {
                     legend: { position: "top" },
                     tooltip: {
                         callbacks: {
-                            title: (items) => items[0].label + "월",
+                            afterBody: function(items) {
+                                const idx = items[0].dataIndex;
+                                const grades = ["D", "C", "B", "A"];
+                                const before = [data.grade_d, data.grade_c, data.grade_b, data.grade_a][idx];
+                                const after = [data.grade_after_d, data.grade_after_c, data.grade_after_b, data.grade_after_a][idx];
+                                const diff = after - before;
+                                return diff <= 0 ? diff + "건 감소" : "+" + diff + "건 증가";
+                            },
                         },
                     },
                 },
                 scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: {
-                            callback: function(val) {
-                                return this.getLabelForValue(val) + "월";
-                            },
-                        },
-                    },
-                    y: { beginAtZero: true, ticks: { stepSize: 5 } },
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { stepSize: 10 } },
                 },
             },
         }
