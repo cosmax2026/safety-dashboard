@@ -291,25 +291,83 @@ function updateCharts(data) {
     // 1. Location bar chart
     renderLocationChart(data);
 
-    // 2. Grade donut
+    // 2. Grade trend line chart
     destroyChart("chart-grade");
+    const gradeTrend = data.grade_trend || {};
+    const trendMonths = Object.keys(gradeTrend);
     chartInstances["chart-grade"] = new Chart(
         document.getElementById("chart-grade"),
         {
-            type: "doughnut",
+            type: "line",
             data: {
-                labels: ["A등급", "B등급", "C등급", "D등급"],
-                datasets: [{
-                    data: [data.grade_a, data.grade_b, data.grade_c, data.grade_d],
-                    backgroundColor: [GRADE_COLORS.A, GRADE_COLORS.B, GRADE_COLORS.C, GRADE_COLORS.D],
-                    borderWidth: 0,
-                }],
+                labels: trendMonths,
+                datasets: [
+                    {
+                        label: "A등급",
+                        data: trendMonths.map(m => gradeTrend[m].A || 0),
+                        borderColor: GRADE_COLORS.A,
+                        backgroundColor: GRADE_COLORS.A + "33",
+                        borderWidth: 2.5,
+                        pointRadius: 5,
+                        pointBackgroundColor: GRADE_COLORS.A,
+                        tension: 0.3,
+                        fill: false,
+                    },
+                    {
+                        label: "B등급",
+                        data: trendMonths.map(m => gradeTrend[m].B || 0),
+                        borderColor: GRADE_COLORS.B,
+                        backgroundColor: GRADE_COLORS.B + "33",
+                        borderWidth: 2.5,
+                        pointRadius: 5,
+                        pointBackgroundColor: GRADE_COLORS.B,
+                        tension: 0.3,
+                        fill: false,
+                    },
+                    {
+                        label: "C등급",
+                        data: trendMonths.map(m => gradeTrend[m].C || 0),
+                        borderColor: GRADE_COLORS.C,
+                        backgroundColor: GRADE_COLORS.C + "33",
+                        borderWidth: 2.5,
+                        pointRadius: 5,
+                        pointBackgroundColor: GRADE_COLORS.C,
+                        tension: 0.3,
+                        fill: false,
+                    },
+                    {
+                        label: "D등급",
+                        data: trendMonths.map(m => gradeTrend[m].D || 0),
+                        borderColor: GRADE_COLORS.D,
+                        backgroundColor: GRADE_COLORS.D + "33",
+                        borderWidth: 2.5,
+                        pointRadius: 5,
+                        pointBackgroundColor: GRADE_COLORS.D,
+                        tension: 0.3,
+                        fill: false,
+                    },
+                ],
             },
             options: {
                 responsive: true,
-                cutout: "60%",
                 plugins: {
                     legend: { position: "top" },
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => items[0].label + "월",
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            callback: function(val) {
+                                return this.getLabelForValue(val) + "월";
+                            },
+                        },
+                    },
+                    y: { beginAtZero: true, ticks: { stepSize: 5 } },
                 },
             },
         }

@@ -386,6 +386,23 @@ async def get_summary(
             location_disaster_stats[lg] = {}
         location_disaster_stats[lg][dt] = location_disaster_stats[lg].get(dt, 0) + 1
 
+    # Grade trend by month
+    grade_trend: dict[str, dict[str, int]] = {}
+    for r in records:
+        m = r["month"]
+        if m not in grade_trend:
+            grade_trend[m] = {"A": 0, "B": 0, "C": 0, "D": 0}
+        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else None
+        if g:
+            grade_trend[m][g] += 1
+    # Sort months naturally (try numeric sort, then string)
+    def month_sort_key(m):
+        try:
+            return int(m.replace("월", ""))
+        except (ValueError, AttributeError):
+            return m
+    grade_trend = dict(sorted(grade_trend.items(), key=lambda x: month_sort_key(x[0])))
+
     # By week
     week_stats: dict[str, int] = {}
     for r in records:
@@ -449,6 +466,7 @@ async def get_summary(
         "incomplete": incomplete,
         "location_stats": location_stats,
         "location_disaster_stats": location_disaster_stats,
+        "grade_trend": grade_trend,
         "week_stats": week_stats,
         "disaster_stats": disaster_stats,
         "process_stats": process_stats,
