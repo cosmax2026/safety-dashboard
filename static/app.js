@@ -291,28 +291,40 @@ function updateCharts(data) {
     // 1. Location bar chart
     renderLocationChart(data);
 
-    // 2. Grade before vs after comparison
+    // 2. Cumulative remaining incomplete by grade
     destroyChart("chart-grade");
+    const gradeCumul = data.grade_cumulative || {};
+    const cumulMonths = Object.keys(gradeCumul);
     chartInstances["chart-grade"] = new Chart(
         document.getElementById("chart-grade"),
         {
             type: "bar",
             data: {
-                labels: ["D등급", "C등급", "B등급", "A등급"],
+                labels: cumulMonths.map(m => m + (m.endsWith("월") ? "" : "월")),
                 datasets: [
                     {
-                        label: "개선 전",
-                        data: [data.grade_d, data.grade_c, data.grade_b, data.grade_a],
-                        backgroundColor: ["#e74c3c99", "#f39c1299", "#3498db99", "#27ae6099"],
-                        borderColor: [GRADE_COLORS.D, GRADE_COLORS.C, GRADE_COLORS.B, GRADE_COLORS.A],
-                        borderWidth: 2,
-                        borderRadius: 4,
+                        label: "D등급",
+                        data: cumulMonths.map(m => gradeCumul[m].D || 0),
+                        backgroundColor: GRADE_COLORS.D,
+                        borderRadius: 2,
                     },
                     {
-                        label: "개선 후",
-                        data: [data.grade_after_d, data.grade_after_c, data.grade_after_b, data.grade_after_a],
-                        backgroundColor: [GRADE_COLORS.D, GRADE_COLORS.C, GRADE_COLORS.B, GRADE_COLORS.A],
-                        borderRadius: 4,
+                        label: "C등급",
+                        data: cumulMonths.map(m => gradeCumul[m].C || 0),
+                        backgroundColor: GRADE_COLORS.C,
+                        borderRadius: 2,
+                    },
+                    {
+                        label: "B등급",
+                        data: cumulMonths.map(m => gradeCumul[m].B || 0),
+                        backgroundColor: GRADE_COLORS.B,
+                        borderRadius: 2,
+                    },
+                    {
+                        label: "A등급",
+                        data: cumulMonths.map(m => gradeCumul[m].A || 0),
+                        backgroundColor: GRADE_COLORS.A,
+                        borderRadius: 2,
                     },
                 ],
             },
@@ -322,20 +334,17 @@ function updateCharts(data) {
                     legend: { position: "top" },
                     tooltip: {
                         callbacks: {
-                            afterBody: function(items) {
+                            footer: function(items) {
                                 const idx = items[0].dataIndex;
-                                const grades = ["D", "C", "B", "A"];
-                                const before = [data.grade_d, data.grade_c, data.grade_b, data.grade_a][idx];
-                                const after = [data.grade_after_d, data.grade_after_c, data.grade_after_b, data.grade_after_a][idx];
-                                const diff = after - before;
-                                return diff <= 0 ? diff + "건 감소" : "+" + diff + "건 증가";
+                                const m = cumulMonths[idx];
+                                return "잔여 합계: " + gradeCumul[m].total_remaining + "건";
                             },
                         },
                     },
                 },
                 scales: {
-                    x: { grid: { display: false } },
-                    y: { beginAtZero: true, ticks: { stepSize: 10 } },
+                    x: { stacked: true, grid: { display: false } },
+                    y: { stacked: true, beginAtZero: true, ticks: { stepSize: 5 } },
                 },
             },
         }

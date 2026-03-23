@@ -366,11 +366,29 @@ async def get_summary(
     incomplete = sum(1 for r in records if r["completion"] != "완료")
     improvement_rate = round(complete / total * 100, 1) if total > 0 else 0
 
-    # Grade before vs after (for improvement comparison)
-    grade_after_a = sum(1 for r in records if r.get("grade_after") == "A")
-    grade_after_b = sum(1 for r in records if r.get("grade_after") == "B")
-    grade_after_c = sum(1 for r in records if r.get("grade_after") == "C")
-    grade_after_d = sum(1 for r in records if r.get("grade_after") == "D")
+    # Cumulative remaining incomplete by grade per month
+    def month_sort_key(m):
+        try:
+            return int(m.replace("월", ""))
+        except (ValueError, AttributeError):
+            return 0
+    all_months = sorted(set(r["month"] for r in records), key=month_sort_key)
+    grade_cumulative = {}  # {month: {D: n, C: n, B: n, A: n, total: n}}
+    cumul = {"A": 0, "B": 0, "C": 0, "D": 0}
+    cumul_total = 0
+    cumul_complete = 0
+    for m in all_months:
+        month_recs = [r for r in records if r["month"] == m]
+        for r in month_recs:
+            g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else None
+            if g and r["completion"] != "완료":
+                cumul[g] += 1
+        cumul_total += len(month_recs)
+        cumul_complete += sum(1 for r in month_recs if r["completion"] == "완료")
+        grade_cumulative[m] = {
+            "A": cumul["A"], "B": cumul["B"], "C": cumul["C"], "D": cumul["D"],
+            "total_remaining": cumul_total - cumul_complete,
+        }
 
     # By location group
     location_stats: dict[str, dict[str, int]] = {}
@@ -468,10 +486,7 @@ async def get_summary(
         "grade_b": grade_b,
         "grade_c": grade_c,
         "grade_d": grade_d,
-        "grade_after_a": grade_after_a,
-        "grade_after_b": grade_after_b,
-        "grade_after_c": grade_after_c,
-        "grade_after_d": grade_after_d,
+        "grade_cumulative": grade_cumulative,
         "complete": complete,
         "incomplete": incomplete,
         "location_stats": location_stats,
