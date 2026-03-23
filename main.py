@@ -103,9 +103,9 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
     """
     ZIP + XML 기반으로 엑셀 내 이미지를 추출.
     Microsoft 365 richData 형식 (셀 내 이미지) 지원.
-    Returns {sheet_name: {row_number(1-based): image_url}}.
+    Returns {sheet_name: {row_number(1-based): {"before": url, "after": url}}}.
     """
-    result: dict[str, dict[int, str]] = {}
+    result: dict[str, dict[int, dict[str, str]]] = {}
     NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
     NS_S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
     NS_RD = "http://schemas.microsoft.com/office/spreadsheetml/2017/richdata"
@@ -185,11 +185,13 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
                             pass
 
                 # 4d) Parse each sheet XML for cells with vm attribute
+                # Column N = 개선 전 사진, Column W = 개선 후 사진
+                col_to_key = {"N": "before", "W": "after"}
                 for sheet_name, sheet_path in sheet_files.items():
                     if sheet_path not in namelist:
                         continue
                     sheet_root = ET.fromstring(zf.read(sheet_path))
-                    row_images: dict[int, str] = {}
+                    row_images: dict[int, dict[str, str]] = {}
 
                     for cell in sheet_root.iter(f'{{{NS_S}}}c'):
                         vm = cell.get('vm')
@@ -197,8 +199,8 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
                             continue
                         ref = cell.get('r', '')
                         col = ''.join(c for c in ref if c.isalpha())
-                        # Column N = before-improvement photo (primary)
-                        if col != 'N':
+                        img_key = col_to_key.get(col)
+                        if not img_key:
                             continue
 
                         row_num = int(''.join(c for c in ref if c.isdigit()))
@@ -206,7 +208,7 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
                         media_name = vm_to_media.get(vm_idx, '')
                         if not media_name or media_name not in media_data:
                             continue
-                        if row_num in row_images:
+                        if row_num in row_images and img_key in row_images[row_num]:
                             continue
 
                         # Save image file
@@ -215,7 +217,9 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
                         fpath = os.path.join(IMAGE_DIR, fname)
                         with open(fpath, "wb") as f:
                             f.write(media_data[media_name])
-                        row_images[row_num] = f"/uploads/images/{fname}"
+                        if row_num not in row_images:
+                            row_images[row_num] = {}
+                        row_images[row_num][img_key] = f"/uploads/images/{fname}"
 
                     if row_images:
                         result[sheet_name] = row_images
@@ -322,7 +326,8 @@ def parse_excel(file_path: str) -> list[dict]:
                 "note": note,
                 "tracking_manager": tracking_manager,
                 "week": week,
-                "image": image_map.get(row_num, ""),
+                "image": (image_map.get(row_num) or {}).get("before", ""),
+                "image_after": (image_map.get(row_num) or {}).get("after", ""),
             }
             all_records.append(record)
 
@@ -361,8 +366,10 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
     for r in records:
         r["channel"] = channel
         r["_id"] = uuid.uuid4().hex
-        if "image" not in r or not r["image"]:
+        if not r.get("image"):
             r["image"] = ""
+        if not r.get("image_after"):
+            r["image_after"] = ""
 
     existing = load_data()
     existing = [r for r in existing if r.get("channel") != channel]
@@ -449,6 +456,7 @@ async def add_record(request: Request):
     completion = body.get("completion", "미완료").strip()
     week = parse_number(body.get("week", 0))
     image = body.get("image", "").strip()
+    image_after = body.get("image_after", "").strip()
 
     likelihood_before = parse_number(body.get("likelihood_before", 0))
     severity_before = parse_number(body.get("severity_before", 0))
@@ -498,6 +506,7 @@ async def add_record(request: Request):
         "week": week,
         "channel": channel,
         "image": image,
+        "image_after": image_after,
     }
 
     existing.append(record)
@@ -525,7 +534,7 @@ async def update_record(request: Request):
 
     # Update editable fields
     for field in ("channel", "month", "person", "date", "location", "content",
-                  "process", "disaster_type", "improvement_plan", "completion", "image"):
+                  "process", "disaster_type", "improvement_plan", "completion", "image", "image_after"):
         if field in body:
             target[field] = body[field].strip() if isinstance(body[field], str) else body[field]
 
@@ -595,6 +604,8 @@ def load_data() -> list[dict]:
             dirty = True
         if "image" not in r:
             r["image"] = ""
+        if "image_after" not in r:
+            r["image_after"] = ""
     if dirty:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Safety Risk Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=5">
+    <link rel="stylesheet" href="/static/style.css?v=6">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -246,7 +246,8 @@
                             <th>완료여부</th>
                             <th>반복</th>
                             <th>주차</th>
-                            <th>사진</th>
+                            <th>개선 전</th>
+                            <th>개선 후</th>
                             <th>작업</th>
                         </tr>
                     </thead>
@@ -363,18 +364,31 @@
                             <option value="완료">완료</option>
                         </select>
                     </div>
-                    <div class="form-group full-width">
-                        <label>사진 첨부</label>
+                    <div class="form-group">
+                        <label>개선 전 사진</label>
                         <div class="image-upload-area">
-                            <input type="file" id="ar-image" accept="image/*" onchange="previewImage(this)" style="display:none">
+                            <input type="file" id="ar-image" accept="image/*" onchange="previewImage('before')" style="display:none">
                             <button type="button" class="btn-image-select" onclick="document.getElementById('ar-image').click()">사진 선택</button>
                             <span id="ar-image-name" class="image-name">선택된 파일 없음</span>
                             <div id="ar-image-preview" class="image-preview" style="display:none;">
                                 <img id="ar-image-thumb" src="" alt="미리보기">
-                                <button type="button" class="btn-image-remove" onclick="removeImage()">X</button>
+                                <button type="button" class="btn-image-remove" onclick="removeImage('before')">X</button>
                             </div>
                         </div>
                         <input type="hidden" id="ar-image-url" value="">
+                    </div>
+                    <div class="form-group">
+                        <label>개선 후 사진</label>
+                        <div class="image-upload-area">
+                            <input type="file" id="ar-image-after" accept="image/*" onchange="previewImage('after')" style="display:none">
+                            <button type="button" class="btn-image-select" onclick="document.getElementById('ar-image-after').click()">사진 선택</button>
+                            <span id="ar-image-after-name" class="image-name">선택된 파일 없음</span>
+                            <div id="ar-image-after-preview" class="image-preview" style="display:none;">
+                                <img id="ar-image-after-thumb" src="" alt="미리보기">
+                                <button type="button" class="btn-image-remove" onclick="removeImage('after')">X</button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="ar-image-after-url" value="">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -398,6 +412,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=10"></script>
+    <script src="/static/app.js?v=11"></script>
 </body>
 </html>

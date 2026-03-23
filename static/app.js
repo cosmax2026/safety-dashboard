@@ -579,8 +579,11 @@ function updateTable(records) {
     tbody.innerHTML = "";
     records.forEach(r => {
         const tr = document.createElement("tr");
-        const imgHtml = r.image
+        const imgBefore = r.image
             ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')">'
+            : '-';
+        const imgAfter = r.image_after
+            ? '<img src="' + escapeHtml(r.image_after) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image_after) + '\')">'
             : '-';
         const rid = escapeHtml(r._id || "");
         tr.innerHTML =
@@ -596,7 +599,8 @@ function updateTable(records) {
             '<td class="' + (r.completion === "완료" ? "status-complete" : "status-incomplete") + '">' + (r.completion || "-") + '</td>' +
             '<td>' + (r.is_repeat ? '<span class="repeat-badge">' + r.repeat_count + '회</span>' : '<span class="repeat-badge single">1회</span>') + '</td>' +
             '<td>' + (r.week || "-") + '</td>' +
-            '<td>' + imgHtml + '</td>' +
+            '<td>' + imgBefore + '</td>' +
+            '<td>' + imgAfter + '</td>' +
             '<td class="action-cell">' +
                 '<button class="btn-edit" onclick="editRecord(\'' + rid + '\')">수정</button>' +
                 '<button class="btn-row-del" onclick="deleteRecord(\'' + rid + '\')">삭제</button>' +
@@ -737,6 +741,9 @@ function showAddRecordModal() {
     document.getElementById("ar-image-url").value = "";
     document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
     document.getElementById("ar-image-preview").style.display = "none";
+    document.getElementById("ar-image-after-url").value = "";
+    document.getElementById("ar-image-after-name").textContent = "선택된 파일 없음";
+    document.getElementById("ar-image-after-preview").style.display = "none";
     document.getElementById("add-record-modal").style.display = "flex";
 }
 
@@ -760,18 +767,18 @@ function calcGrade(phase) {
     }
 }
 
-async function previewImage(input) {
+async function previewImage(phase) {
+    const suffix = phase === "after" ? "-after" : "";
+    const input = document.getElementById("ar-image" + suffix);
     const file = input.files[0];
     if (!file) return;
-    document.getElementById("ar-image-name").textContent = file.name;
-    // Show local preview
+    document.getElementById("ar-image" + suffix + "-name").textContent = file.name;
     const reader = new FileReader();
     reader.onload = function(e) {
-        document.getElementById("ar-image-thumb").src = e.target.result;
-        document.getElementById("ar-image-preview").style.display = "flex";
+        document.getElementById("ar-image" + suffix + "-thumb").src = e.target.result;
+        document.getElementById("ar-image" + suffix + "-preview").style.display = "flex";
     };
     reader.readAsDataURL(file);
-    // Upload immediately
     const formData = new FormData();
     formData.append("file", file);
     try {
@@ -783,17 +790,18 @@ async function previewImage(input) {
         if (res.status === 401) { logout(); return; }
         if (!res.ok) { alert("이미지 업로드 실패"); return; }
         const data = await res.json();
-        document.getElementById("ar-image-url").value = data.url;
+        document.getElementById("ar-image" + suffix + "-url").value = data.url;
     } catch (e) {
         alert("이미지 업로드 실패: " + e.message);
     }
 }
 
-function removeImage() {
-    document.getElementById("ar-image").value = "";
-    document.getElementById("ar-image-url").value = "";
-    document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
-    document.getElementById("ar-image-preview").style.display = "none";
+function removeImage(phase) {
+    const suffix = phase === "after" ? "-after" : "";
+    document.getElementById("ar-image" + suffix).value = "";
+    document.getElementById("ar-image" + suffix + "-url").value = "";
+    document.getElementById("ar-image" + suffix + "-name").textContent = "선택된 파일 없음";
+    document.getElementById("ar-image" + suffix + "-preview").style.display = "none";
 }
 
 async function submitAddRecord(e) {
@@ -815,6 +823,7 @@ async function submitAddRecord(e) {
         completion: document.getElementById("ar-completion").value,
         week: parseInt(document.getElementById("ar-week").value) || 0,
         image: document.getElementById("ar-image-url").value,
+        image_after: document.getElementById("ar-image-after-url").value,
     };
 
     const isEdit = !!editingRecordId;
@@ -868,7 +877,7 @@ function editRecord(id) {
     calcGrade("before");
     calcGrade("after");
 
-    // Image
+    // Image (before)
     if (r.image) {
         document.getElementById("ar-image-url").value = r.image;
         document.getElementById("ar-image-name").textContent = "기존 사진";
@@ -878,6 +887,17 @@ function editRecord(id) {
         document.getElementById("ar-image-url").value = "";
         document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
         document.getElementById("ar-image-preview").style.display = "none";
+    }
+    // Image (after)
+    if (r.image_after) {
+        document.getElementById("ar-image-after-url").value = r.image_after;
+        document.getElementById("ar-image-after-name").textContent = "기존 사진";
+        document.getElementById("ar-image-after-thumb").src = r.image_after;
+        document.getElementById("ar-image-after-preview").style.display = "flex";
+    } else {
+        document.getElementById("ar-image-after-url").value = "";
+        document.getElementById("ar-image-after-name").textContent = "선택된 파일 없음";
+        document.getElementById("ar-image-after-preview").style.display = "none";
     }
 
     document.getElementById("add-record-modal").style.display = "flex";
