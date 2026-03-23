@@ -1,6 +1,6 @@
 let TOKEN = sessionStorage.getItem("token") || "";
 let chartInstances = {};
-let locationViewMode = "category"; // "category" or "detail"
+let locationViewMode = "grade"; // "grade" or "disaster"
 let lastSummaryData = null;
 
 // --- Auth ---
@@ -205,14 +205,20 @@ function destroyChart(id) {
     }
 }
 
+const DISASTER_COLORS = [
+    "#e74c3c", "#3498db", "#f39c12", "#27ae60", "#9b59b6",
+    "#1abc9c", "#e67e22", "#34495e", "#e91e63", "#00bcd4",
+    "#8bc34a", "#ff5722", "#607d8b", "#795548", "#cddc39",
+];
+
 function toggleLocationView() {
-    locationViewMode = locationViewMode === "category" ? "detail" : "category";
+    locationViewMode = locationViewMode === "grade" ? "disaster" : "grade";
     const btn = document.getElementById("btn-loc-toggle");
-    if (locationViewMode === "category") {
-        btn.textContent = "카테고리별";
+    if (locationViewMode === "grade") {
+        btn.textContent = "재해유형별";
         btn.classList.remove("active");
     } else {
-        btn.textContent = "장소별";
+        btn.textContent = "등급별";
         btn.classList.add("active");
     }
     if (lastSummaryData) renderLocationChart(lastSummaryData);
@@ -220,109 +226,43 @@ function toggleLocationView() {
 
 function renderLocationChart(data) {
     destroyChart("chart-location");
+    const locLabels = Object.keys(data.location_stats);
 
-    if (locationViewMode === "category") {
-        // Category grouped view
-        const catStats = data.location_category_stats || {};
-        const catOrder = Object.keys(catStats).sort((a, b) => {
-            const totalA = (catStats[a].A || 0) + (catStats[a].B || 0) + (catStats[a].C || 0) + (catStats[a].D || 0);
-            const totalB = (catStats[b].A || 0) + (catStats[b].B || 0) + (catStats[b].C || 0) + (catStats[b].D || 0);
+    if (locationViewMode === "disaster") {
+        // Disaster type view
+        const locDisaster = data.location_disaster_stats || {};
+        const allTypes = new Set();
+        Object.values(locDisaster).forEach(obj => Object.keys(obj).forEach(k => allTypes.add(k)));
+        const typeList = [...allTypes].sort((a, b) => {
+            const totalA = locLabels.reduce((s, l) => s + ((locDisaster[l] || {})[a] || 0), 0);
+            const totalB = locLabels.reduce((s, l) => s + ((locDisaster[l] || {})[b] || 0), 0);
             return totalB - totalA;
         });
 
-        // Build labels and data: category header + individual locations
-        const labels = [];
-        const dataA = [], dataB = [], dataC = [], dataD = [];
-        const bgA = [], bgB = [], bgC = [], bgD = [];
-        const borderTop = [];
-
-        catOrder.forEach(cat => {
-            const locs = catStats[cat].locations || {};
-            const locKeys = Object.keys(locs).sort();
-
-            locKeys.forEach(loc => {
-                labels.push(loc);
-                dataA.push(locs[loc].A || 0);
-                dataB.push(locs[loc].B || 0);
-                dataC.push(locs[loc].C || 0);
-                dataD.push(locs[loc].D || 0);
-                bgA.push(GRADE_COLORS.A);
-                bgB.push(GRADE_COLORS.B);
-                bgC.push(GRADE_COLORS.C);
-                bgD.push(GRADE_COLORS.D);
-                borderTop.push(cat);
-            });
-        });
-
-        const datasets = [
-            { label: "A등급", data: dataA, backgroundColor: bgA, borderRadius: 4 },
-            { label: "B등급", data: dataB, backgroundColor: bgB, borderRadius: 4 },
-            { label: "C등급", data: dataC, backgroundColor: bgC, borderRadius: 4 },
-            { label: "D등급", data: dataD, backgroundColor: bgD, borderRadius: 4 },
-        ];
-
-        // Category separator plugin
-        const categoryPlugin = {
-            id: "categoryBracket",
-            afterDraw(chart) {
-                const { ctx, scales: { x } } = chart;
-                const catGroups = {};
-                labels.forEach((lbl, i) => {
-                    const cat = borderTop[i];
-                    if (!catGroups[cat]) catGroups[cat] = { start: i, end: i };
-                    else catGroups[cat].end = i;
-                });
-
-                const catColors = { "화성": "#e74c3c", "평택": "#3498db", "판교": "#27ae60", "고렴": "#f39c12", "기타": "#95a5a6" };
-                const y = chart.chartArea.bottom + 36;
-
-                ctx.save();
-                Object.entries(catGroups).forEach(([cat, { start, end }]) => {
-                    const x1 = x.getPixelForValue(start);
-                    const x2 = x.getPixelForValue(end);
-                    const midX = (x1 + x2) / 2;
-                    const color = catColors[cat] || "#666";
-
-                    // Bracket line
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y - 4);
-                    ctx.lineTo(x1, y);
-                    ctx.lineTo(x2, y);
-                    ctx.lineTo(x2, y - 4);
-                    ctx.stroke();
-
-                    // Category label
-                    ctx.fillStyle = color;
-                    ctx.font = "bold 12px 'Segoe UI', sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.fillText(cat, midX, y + 16);
-                });
-                ctx.restore();
-            }
-        };
+        const datasets = typeList.map((dt, i) => ({
+            label: dt,
+            data: locLabels.map(l => (locDisaster[l] || {})[dt] || 0),
+            backgroundColor: DISASTER_COLORS[i % DISASTER_COLORS.length],
+            borderRadius: 4,
+        }));
 
         chartInstances["chart-location"] = new Chart(
             document.getElementById("chart-location"),
             {
                 type: "bar",
-                data: { labels, datasets },
+                data: { labels: locLabels, datasets },
                 options: {
                     responsive: true,
                     plugins: { legend: { display: true, position: "top" } },
-                    layout: { padding: { bottom: 40 } },
                     scales: {
-                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-                        y: { beginAtZero: true, ticks: { stepSize: 5 } },
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, ticks: { stepSize: 5 } },
                     },
                 },
-                plugins: [categoryPlugin],
             }
         );
     } else {
-        // Detail view (original)
-        const locLabels = Object.keys(data.location_stats);
+        // Grade view (default)
         const locDatasets = ["A", "B", "C", "D"].map(g => ({
             label: g + "등급",
             data: locLabels.map(l => data.location_stats[l][g] || 0),

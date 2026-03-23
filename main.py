@@ -92,16 +92,6 @@ def extract_location_group(location: str) -> str:
     return loc[:10] if len(loc) > 10 else loc
 
 
-def extract_location_category(location_group: str) -> str:
-    if "화성" in location_group:
-        return "화성"
-    if "평택" in location_group:
-        return "평택"
-    if "판교" in location_group:
-        return "판교"
-    if "고렴" in location_group:
-        return "고렴"
-    return "기타"
 
 
 def parse_excel(file_path: str) -> list[dict]:
@@ -385,15 +375,16 @@ async def get_summary(
         g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
         location_stats[lg][g] += 1
 
-    # By location category (grouped)
-    location_category_stats: dict[str, dict] = {}
-    for lg, grades in location_stats.items():
-        cat = extract_location_category(lg)
-        if cat not in location_category_stats:
-            location_category_stats[cat] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0, "locations": {}}
-        for g_key in ("A", "B", "C", "D", "-"):
-            location_category_stats[cat][g_key] += grades[g_key]
-        location_category_stats[cat]["locations"][lg] = grades
+    # By location x disaster type
+    location_disaster_stats: dict[str, dict[str, int]] = {}
+    all_disaster_types_set: set[str] = set()
+    for r in records:
+        lg = r["location_group"]
+        dt = r["disaster_type"] if r["disaster_type"] else "미분류"
+        all_disaster_types_set.add(dt)
+        if lg not in location_disaster_stats:
+            location_disaster_stats[lg] = {}
+        location_disaster_stats[lg][dt] = location_disaster_stats[lg].get(dt, 0) + 1
 
     # By week
     week_stats: dict[str, int] = {}
@@ -457,7 +448,7 @@ async def get_summary(
         "complete": complete,
         "incomplete": incomplete,
         "location_stats": location_stats,
-        "location_category_stats": location_category_stats,
+        "location_disaster_stats": location_disaster_stats,
         "week_stats": week_stats,
         "disaster_stats": disaster_stats,
         "process_stats": process_stats,
