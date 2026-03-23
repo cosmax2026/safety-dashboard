@@ -291,47 +291,46 @@ function updateCharts(data) {
     // 1. Location bar chart
     renderLocationChart(data);
 
-    // 2. Cumulative remaining incomplete by grade
+    // 2. Cumulative remaining incomplete by grade (bar + trend lines)
     destroyChart("chart-grade");
     const gradeCumul = data.grade_cumulative || {};
     const cumulMonths = Object.keys(gradeCumul);
+    const cumulLabels = cumulMonths.map(m => m + (m.endsWith("월") ? "" : "월"));
+    const dData = cumulMonths.map(m => gradeCumul[m].D || 0);
+    const cData = cumulMonths.map(m => gradeCumul[m].C || 0);
+    const bData = cumulMonths.map(m => gradeCumul[m].B || 0);
+    const aData = cumulMonths.map(m => gradeCumul[m].A || 0);
+
     chartInstances["chart-grade"] = new Chart(
         document.getElementById("chart-grade"),
         {
             type: "bar",
             data: {
-                labels: cumulMonths.map(m => m + (m.endsWith("월") ? "" : "월")),
+                labels: cumulLabels,
                 datasets: [
-                    {
-                        label: "D등급",
-                        data: cumulMonths.map(m => gradeCumul[m].D || 0),
-                        backgroundColor: GRADE_COLORS.D,
-                        borderRadius: 2,
-                    },
-                    {
-                        label: "C등급",
-                        data: cumulMonths.map(m => gradeCumul[m].C || 0),
-                        backgroundColor: GRADE_COLORS.C,
-                        borderRadius: 2,
-                    },
-                    {
-                        label: "B등급",
-                        data: cumulMonths.map(m => gradeCumul[m].B || 0),
-                        backgroundColor: GRADE_COLORS.B,
-                        borderRadius: 2,
-                    },
-                    {
-                        label: "A등급",
-                        data: cumulMonths.map(m => gradeCumul[m].A || 0),
-                        backgroundColor: GRADE_COLORS.A,
-                        borderRadius: 2,
-                    },
+                    // Stacked bars
+                    { label: "D등급", data: dData, backgroundColor: GRADE_COLORS.D + "66", borderRadius: 2, stack: "bar", order: 2 },
+                    { label: "C등급", data: cData, backgroundColor: GRADE_COLORS.C + "66", borderRadius: 2, stack: "bar", order: 2 },
+                    { label: "B등급", data: bData, backgroundColor: GRADE_COLORS.B + "66", borderRadius: 2, stack: "bar", order: 2 },
+                    { label: "A등급", data: aData, backgroundColor: GRADE_COLORS.A + "66", borderRadius: 2, stack: "bar", order: 2 },
+                    // Trend lines
+                    { label: "D추세", data: dData, type: "line", borderColor: GRADE_COLORS.D, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.D, tension: 0.3, fill: false, order: 1 },
+                    { label: "C추세", data: cData, type: "line", borderColor: GRADE_COLORS.C, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.C, tension: 0.3, fill: false, order: 1 },
+                    { label: "B추세", data: bData, type: "line", borderColor: GRADE_COLORS.B, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.B, tension: 0.3, fill: false, order: 1 },
+                    { label: "A추세", data: aData, type: "line", borderColor: GRADE_COLORS.A, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.A, tension: 0.3, fill: false, order: 1 },
                 ],
             },
             options: {
                 responsive: true,
                 plugins: {
-                    legend: { position: "top" },
+                    legend: {
+                        position: "top",
+                        labels: {
+                            filter: function(item) {
+                                return !item.text.includes("추세");
+                            },
+                        },
+                    },
                     tooltip: {
                         callbacks: {
                             footer: function(items) {
