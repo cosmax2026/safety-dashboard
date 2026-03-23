@@ -23,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = os.environ.get("DATA_DIR", "uploads")
 IMAGE_DIR = os.path.join(UPLOAD_DIR, "images")
 DATA_FILE = os.path.join(UPLOAD_DIR, "current_data.json")
 PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "2026")
@@ -365,6 +365,7 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
 
     for r in records:
         r["channel"] = channel
+        r["source"] = "excel"
         r["_id"] = uuid.uuid4().hex
         if not r.get("image"):
             r["image"] = ""
@@ -372,7 +373,8 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
             r["image_after"] = ""
 
     existing = load_data()
-    existing = [r for r in existing if r.get("channel") != channel]
+    # 엑셀 데이터만 교체, 직접입력(manual) 데이터는 보존
+    existing = [r for r in existing if r.get("channel") != channel or r.get("source") == "manual"]
     existing.extend(records)
 
     save_data(existing)
@@ -505,6 +507,7 @@ async def add_record(request: Request):
         "tracking_manager": "",
         "week": week,
         "channel": channel,
+        "source": "manual",
         "image": image,
         "image_after": image_after,
     }
