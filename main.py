@@ -3,8 +3,10 @@ import json
 import hashlib
 import secrets
 import uuid
+import zipfile
 from datetime import datetime, date
 from typing import Optional
+from xml.etree import ElementTree as ET
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
@@ -97,47 +99,142 @@ def extract_location_group(location: str) -> str:
 
 
 
-def extract_sheet_images(ws) -> dict[int, str]:
-    """Extract embedded images from worksheet, return {row_number: image_url}."""
-    image_map: dict[int, str] = {}
-    for img in getattr(ws, '_images', []):
-        try:
-            anchor = img.anchor
-            row = None
-            if hasattr(anchor, '_from'):
-                row = anchor._from.row + 1  # openpyxl uses 0-based row
-            if row is None:
-                continue
+def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
+    """
+    ZIP + XML 기반으로 엑셀 내 이미지를 추출.
+    Returns {sheet_name: {row_number(1-based): image_url}}.
+    """
+    result: dict[str, dict[int, str]] = {}
+    NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    NS_S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    NS_XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+    NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
-            img_bytes = img._data()
-            if not img_bytes:
-                continue
+    try:
+        with zipfile.ZipFile(file_path, 'r') as zf:
+            namelist = set(zf.namelist())
 
-            # Detect format from magic bytes
-            ext = '.png'
-            if img_bytes[:2] == b'\xff\xd8':
-                ext = '.jpg'
-            elif img_bytes[:4] == b'GIF8':
-                ext = '.gif'
-            elif img_bytes[:4] == b'RIFF':
-                ext = '.webp'
+            # 1) Read all media files
+            media_data: dict[str, bytes] = {}
+            for name in namelist:
+                if '/media/' in name:
+                    media_data[name.split('/')[-1]] = zf.read(name)
+            if not media_data:
+                return result
 
-            fname = f"{uuid.uuid4().hex}{ext}"
-            fpath = os.path.join(IMAGE_DIR, fname)
-            with open(fpath, "wb") as f:
-                f.write(img_bytes)
+            # 2) workbook.xml.rels -> rId → sheet path
+            rid_to_path: dict[str, str] = {}
+            wb_rels = 'xl/_rels/workbook.xml.rels'
+            if wb_rels in namelist:
+                for rel in ET.fromstring(zf.read(wb_rels)):
+                    rid = rel.get('Id', '')
+                    target = rel.get('Target', '')
+                    if rid and target:
+                        if target.startswith('/'):
+                            rid_to_path[rid] = target.lstrip('/')
+                        else:
+                            rid_to_path[rid] = 'xl/' + target.lstrip('./')
 
-            # Only keep first image per row
-            if row not in image_map:
-                image_map[row] = f"/uploads/images/{fname}"
-        except Exception:
-            continue
-    return image_map
+            # 3) workbook.xml -> sheet name → rId → path
+            sheet_files: dict[str, str] = {}
+            if 'xl/workbook.xml' in namelist:
+                wb_root = ET.fromstring(zf.read('xl/workbook.xml'))
+                for el in wb_root.iter(f'{{{NS_S}}}sheet'):
+                    sname = el.get('name', '')
+                    rid = el.get(f'{{{NS_R}}}id', '')
+                    if sname and rid and rid in rid_to_path:
+                        sheet_files[sname] = rid_to_path[rid]
+
+            # 4) Per sheet: find drawing, parse anchors
+            for sheet_name, sheet_path in sheet_files.items():
+                # sheet rels file
+                parts = sheet_path.rsplit('/', 1)
+                rels_path = (parts[0] + '/_rels/' + parts[1] + '.rels') if len(parts) == 2 else ('_rels/' + parts[0] + '.rels')
+                if rels_path not in namelist:
+                    continue
+
+                # Find drawing relationship
+                drawing_path = None
+                for rel in ET.fromstring(zf.read(rels_path)):
+                    rtype = rel.get('Type', '')
+                    if 'drawing' in rtype and 'vml' not in rtype.lower():
+                        target = rel.get('Target', '')
+                        if target.startswith('..'):
+                            drawing_path = 'xl/' + target.replace('../', '')
+                        elif target.startswith('/'):
+                            drawing_path = target.lstrip('/')
+                        else:
+                            drawing_path = '/'.join(sheet_path.rsplit('/', 1)[:-1]) + '/' + target
+                        break
+                if not drawing_path or drawing_path not in namelist:
+                    continue
+
+                # Drawing rels -> rId → media filename
+                d_parts = drawing_path.rsplit('/', 1)
+                d_rels = (d_parts[0] + '/_rels/' + d_parts[1] + '.rels') if len(d_parts) == 2 else ('_rels/' + d_parts[0] + '.rels')
+                rid_to_media: dict[str, str] = {}
+                if d_rels in namelist:
+                    for rel in ET.fromstring(zf.read(d_rels)):
+                        rid = rel.get('Id', '')
+                        target = rel.get('Target', '')
+                        if rid and target:
+                            rid_to_media[rid] = target.split('/')[-1]
+
+                # Parse drawing XML anchors
+                drawing_root = ET.fromstring(zf.read(drawing_path))
+                row_images: dict[int, str] = {}
+
+                for anchor in drawing_root:
+                    tag = anchor.tag.split('}')[-1] if '}' in anchor.tag else anchor.tag
+                    if tag not in ('twoCellAnchor', 'oneCellAnchor'):
+                        continue
+
+                    from_el = anchor.find(f'{{{NS_XDR}}}from')
+                    if from_el is None:
+                        continue
+                    row_el = from_el.find(f'{{{NS_XDR}}}row')
+                    if row_el is None or not row_el.text:
+                        continue
+                    row = int(row_el.text) + 1  # 0-based → 1-based
+
+                    # Find blip (image reference)
+                    blip = None
+                    for elem in anchor.iter(f'{{{NS_A}}}blip'):
+                        blip = elem
+                        break
+                    if blip is None:
+                        continue
+                    embed = blip.get(f'{{{NS_R}}}embed', '')
+                    if not embed or embed not in rid_to_media:
+                        continue
+
+                    media_name = rid_to_media[embed]
+                    if media_name not in media_data:
+                        continue
+                    if row in row_images:
+                        continue
+
+                    # Save image file
+                    ext = os.path.splitext(media_name)[1] or '.png'
+                    fname = f"{uuid.uuid4().hex}{ext}"
+                    fpath = os.path.join(IMAGE_DIR, fname)
+                    with open(fpath, "wb") as f:
+                        f.write(media_data[media_name])
+                    row_images[row] = f"/uploads/images/{fname}"
+
+                if row_images:
+                    result[sheet_name] = row_images
+    except Exception as e:
+        print(f"[extract_excel_images] error: {e}")
+
+    return result
 
 
 def parse_excel(file_path: str) -> list[dict]:
-    # read_only=False to support embedded image extraction
-    wb = openpyxl.load_workbook(file_path, data_only=True)
+    # ZIP 기반으로 이미지 먼저 추출 (openpyxl 의존 X)
+    all_images = extract_excel_images(file_path)
+
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
     all_records = []
 
     target_sheets = [s for s in wb.sheetnames if s != "미완료"]
@@ -145,9 +242,7 @@ def parse_excel(file_path: str) -> list[dict]:
     for sheet_name in target_sheets:
         ws = wb[sheet_name]
         month_label = sheet_name
-
-        # Extract embedded images mapped to row numbers
-        image_map = extract_sheet_images(ws)
+        image_map = all_images.get(sheet_name, {})
 
         for row_num, row in enumerate(
             ws.iter_rows(min_row=7, max_row=ws.max_row, values_only=True),
