@@ -591,6 +591,7 @@ function updateTable(records) {
             <td class="${r.completion === "완료" ? "status-complete" : "status-incomplete"}">${r.completion || "-"}</td>
             <td>${r.is_repeat ? '<span class="repeat-badge">' + r.repeat_count + '회</span>' : '<span class="repeat-badge single">1회</span>'}</td>
             <td>${r.week || "-"}</td>
+            <td>${r.image ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')">' : '-'}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -712,6 +713,127 @@ async function printReport() {
         btn.textContent = '리포트 출력';
         btn.disabled = false;
     }
+}
+
+// --- Direct Input ---
+function showAddRecordModal() {
+    document.getElementById("add-record-modal").style.display = "flex";
+    document.getElementById("add-record-form").reset();
+    document.getElementById("ar-grade-before").textContent = "-";
+    document.getElementById("ar-grade-after").textContent = "-";
+    document.getElementById("ar-grade-before").className = "calc-result";
+    document.getElementById("ar-grade-after").className = "calc-result";
+    document.getElementById("ar-image-url").value = "";
+    document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
+    document.getElementById("ar-image-preview").style.display = "none";
+}
+
+function closeAddRecordModal() {
+    document.getElementById("add-record-modal").style.display = "none";
+}
+
+function calcGrade(phase) {
+    const lh = parseInt(document.getElementById("ar-lh-" + phase).value) || 0;
+    const sv = parseInt(document.getElementById("ar-sv-" + phase).value) || 0;
+    const el = document.getElementById("ar-grade-" + phase);
+    if (lh > 0 && sv > 0) {
+        const risk = lh * sv;
+        const grade = risk <= 4 ? "A" : risk <= 8 ? "B" : risk <= 12 ? "C" : "D";
+        el.textContent = risk + " (" + grade + "등급)";
+        el.className = "calc-result grade-text-" + grade;
+    } else {
+        el.textContent = "-";
+        el.className = "calc-result";
+    }
+}
+
+async function previewImage(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById("ar-image-name").textContent = file.name;
+    // Show local preview
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById("ar-image-thumb").src = e.target.result;
+        document.getElementById("ar-image-preview").style.display = "flex";
+    };
+    reader.readAsDataURL(file);
+    // Upload immediately
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+        const res = await fetch("/api/image/upload", {
+            method: "POST",
+            headers: authHeaders(),
+            body: formData,
+        });
+        if (res.status === 401) { logout(); return; }
+        if (!res.ok) { alert("이미지 업로드 실패"); return; }
+        const data = await res.json();
+        document.getElementById("ar-image-url").value = data.url;
+    } catch (e) {
+        alert("이미지 업로드 실패: " + e.message);
+    }
+}
+
+function removeImage() {
+    document.getElementById("ar-image").value = "";
+    document.getElementById("ar-image-url").value = "";
+    document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
+    document.getElementById("ar-image-preview").style.display = "none";
+}
+
+async function submitAddRecord(e) {
+    e.preventDefault();
+    const payload = {
+        channel: document.getElementById("ar-channel").value,
+        month: document.getElementById("ar-month").value,
+        person: document.getElementById("ar-person").value,
+        date: document.getElementById("ar-date").value,
+        location: document.getElementById("ar-location").value,
+        content: document.getElementById("ar-content").value,
+        process: document.getElementById("ar-process").value,
+        disaster_type: document.getElementById("ar-disaster").value,
+        likelihood_before: parseInt(document.getElementById("ar-lh-before").value) || 0,
+        severity_before: parseInt(document.getElementById("ar-sv-before").value) || 0,
+        improvement_plan: document.getElementById("ar-improvement").value,
+        likelihood_after: parseInt(document.getElementById("ar-lh-after").value) || 0,
+        severity_after: parseInt(document.getElementById("ar-sv-after").value) || 0,
+        completion: document.getElementById("ar-completion").value,
+        week: parseInt(document.getElementById("ar-week").value) || 0,
+        image: document.getElementById("ar-image-url").value,
+    };
+    try {
+        const res = await fetch("/api/record/add", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        if (!res.ok) { alert(data.detail || "등록 실패"); return; }
+        alert(data.message);
+        closeAddRecordModal();
+        fetchSummary();
+    } catch (e) {
+        alert("등록 실패: " + e.message);
+    }
+}
+
+// --- Image Viewer ---
+function showImageModal(src) {
+    let modal = document.getElementById("image-viewer-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "image-viewer-modal";
+        modal.className = "modal-overlay";
+        modal.style.cursor = "pointer";
+        modal.onclick = function() { modal.style.display = "none"; };
+        modal.innerHTML = '<img id="image-viewer-img" class="image-viewer-img" src="">';
+        document.body.appendChild(modal);
+    }
+    document.getElementById("image-viewer-img").src = src;
+    modal.style.display = "flex";
 }
 
 // --- Init ---

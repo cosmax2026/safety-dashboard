@@ -21,11 +21,13 @@ app.add_middleware(
 )
 
 UPLOAD_DIR = "uploads"
+IMAGE_DIR = os.path.join(UPLOAD_DIR, "images")
 DATA_FILE = os.path.join(UPLOAD_DIR, "current_data.json")
 PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "2026")
 SESSION_TOKENS: set[str] = set()
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(IMAGE_DIR, exist_ok=True)
 
 
 # --- Auth ---
@@ -260,6 +262,109 @@ async def delete_channel_data(request: Request):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return {"message": f"[{channel}] {before - after}건 삭제 완료", "remaining": after}
+
+
+# --- Image Upload ---
+import uuid
+
+ALLOWED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic")
+
+@app.post("/api/image/upload")
+async def upload_image(request: Request, file: UploadFile = File(...)):
+    verify_token(request)
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="이미지 파일만 업로드 가능합니다. (jpg, png, gif, webp)")
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = os.path.join(IMAGE_DIR, filename)
+    content = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+    return {"filename": filename, "url": f"/uploads/images/{filename}"}
+
+
+@app.get("/uploads/images/{filename}")
+async def get_image(filename: str):
+    filepath = os.path.join(IMAGE_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="이미지를 찾을 수 없습니다.")
+    return FileResponse(filepath)
+
+
+# --- Direct Record Input ---
+@app.post("/api/record/add")
+async def add_record(request: Request):
+    verify_token(request)
+    body = await request.json()
+
+    # Required fields
+    channel = body.get("channel", "").strip()
+    month = body.get("month", "").strip()
+    person = body.get("person", "").strip()
+    date_val = body.get("date", "").strip()
+    location = body.get("location", "").strip()
+    content = body.get("content", "").strip()
+    process = body.get("process", "").strip()
+    disaster_type = body.get("disaster_type", "").strip()
+    improvement_plan = body.get("improvement_plan", "").strip()
+    completion = body.get("completion", "미완료").strip()
+    week = parse_number(body.get("week", 0))
+    image = body.get("image", "").strip()
+
+    likelihood_before = parse_number(body.get("likelihood_before", 0))
+    severity_before = parse_number(body.get("severity_before", 0))
+    risk_before = likelihood_before * severity_before
+    grade_before = "A" if risk_before <= 4 else "B" if risk_before <= 8 else "C" if risk_before <= 12 else "D" if risk_before > 0 else "-"
+
+    likelihood_after = parse_number(body.get("likelihood_after", 0))
+    severity_after = parse_number(body.get("severity_after", 0))
+    risk_after = likelihood_after * severity_after
+    grade_after = "A" if risk_after <= 4 else "B" if risk_after <= 8 else "C" if risk_after <= 12 else "D" if risk_after > 0 else "-"
+
+    if not channel or not content:
+        raise HTTPException(status_code=400, detail="구분(채널)과 위험요소 내용은 필수입니다.")
+
+    existing = load_data()
+    max_no = max((r.get("no", 0) for r in existing), default=0)
+
+    record = {
+        "no": max_no + 1,
+        "month": month,
+        "department": "",
+        "person": person,
+        "date": parse_date(date_val),
+        "location": location,
+        "location_group": extract_location_group(location),
+        "content": content[:100],
+        "content_full": content,
+        "process": process,
+        "disaster_type": disaster_type,
+        "likelihood_before": likelihood_before,
+        "severity_before": severity_before,
+        "risk_before": risk_before,
+        "grade_before": grade_before,
+        "improvement_needed": "",
+        "improvement_plan": improvement_plan,
+        "improve_dept": "",
+        "planned_date": None,
+        "actual_date": None,
+        "likelihood_after": likelihood_after,
+        "severity_after": severity_after,
+        "risk_after": risk_after,
+        "grade_after": grade_after,
+        "completion": completion,
+        "note": "",
+        "tracking_manager": "",
+        "week": week,
+        "channel": channel,
+        "image": image,
+    }
+
+    existing.append(record)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(existing, f, ensure_ascii=False, indent=2)
+
+    return {"message": f"위험요소 1건 추가 완료 (No.{record['no']})", "record": record}
 
 
 # --- Data API ---
