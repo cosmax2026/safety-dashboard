@@ -2,6 +2,7 @@ let TOKEN = sessionStorage.getItem("token") || "";
 let chartInstances = {};
 let locationViewMode = "grade"; // "grade" or "disaster"
 let lastSummaryData = null;
+let editingRecordId = null; // null = add mode, string = edit mode
 
 // --- Auth ---
 async function login() {
@@ -578,21 +579,28 @@ function updateTable(records) {
     tbody.innerHTML = "";
     records.forEach(r => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${r.no}</td>
-            <td>${r.month}</td>
-            <td>${r.person}</td>
-            <td>${r.date || "-"}</td>
-            <td>${r.location || "-"}</td>
-            <td title="${escapeHtml(r.content_full)}">${escapeHtml(r.content)}</td>
-            <td>${r.disaster_type || "-"}</td>
-            <td><span class="grade-badge grade-${r.grade_before}">${r.grade_before}</span></td>
-            <td><span class="grade-badge grade-${r.grade_after || "-"}">${r.grade_after || "-"}</span></td>
-            <td class="${r.completion === "완료" ? "status-complete" : "status-incomplete"}">${r.completion || "-"}</td>
-            <td>${r.is_repeat ? '<span class="repeat-badge">' + r.repeat_count + '회</span>' : '<span class="repeat-badge single">1회</span>'}</td>
-            <td>${r.week || "-"}</td>
-            <td>${r.image ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')">' : '-'}</td>
-        `;
+        const imgHtml = r.image
+            ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')">'
+            : '-';
+        const rid = escapeHtml(r._id || "");
+        tr.innerHTML =
+            '<td>' + r.no + '</td>' +
+            '<td>' + escapeHtml(r.month) + '</td>' +
+            '<td>' + escapeHtml(r.person) + '</td>' +
+            '<td>' + (r.date || "-") + '</td>' +
+            '<td>' + escapeHtml(r.location || "-") + '</td>' +
+            '<td title="' + escapeHtml(r.content_full) + '">' + escapeHtml(r.content) + '</td>' +
+            '<td>' + escapeHtml(r.disaster_type || "-") + '</td>' +
+            '<td><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></td>' +
+            '<td><span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></td>' +
+            '<td class="' + (r.completion === "완료" ? "status-complete" : "status-incomplete") + '">' + (r.completion || "-") + '</td>' +
+            '<td>' + (r.is_repeat ? '<span class="repeat-badge">' + r.repeat_count + '회</span>' : '<span class="repeat-badge single">1회</span>') + '</td>' +
+            '<td>' + (r.week || "-") + '</td>' +
+            '<td>' + imgHtml + '</td>' +
+            '<td class="action-cell">' +
+                '<button class="btn-edit" onclick="editRecord(\'' + rid + '\')">수정</button>' +
+                '<button class="btn-row-del" onclick="deleteRecord(\'' + rid + '\')">삭제</button>' +
+            '</td>';
         tbody.appendChild(tr);
     });
 }
@@ -717,7 +725,10 @@ async function printReport() {
 
 // --- Direct Input ---
 function showAddRecordModal() {
-    document.getElementById("add-record-modal").style.display = "flex";
+    editingRecordId = null;
+    document.getElementById("ar-modal-title").textContent = "위험요소 직접입력";
+    document.getElementById("ar-modal-desc").textContent = "개별 위험요소를 직접 등록합니다.";
+    document.getElementById("ar-submit-btn").textContent = "등록";
     document.getElementById("add-record-form").reset();
     document.getElementById("ar-grade-before").textContent = "-";
     document.getElementById("ar-grade-after").textContent = "-";
@@ -726,10 +737,12 @@ function showAddRecordModal() {
     document.getElementById("ar-image-url").value = "";
     document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
     document.getElementById("ar-image-preview").style.display = "none";
+    document.getElementById("add-record-modal").style.display = "flex";
 }
 
 function closeAddRecordModal() {
     document.getElementById("add-record-modal").style.display = "none";
+    editingRecordId = null;
 }
 
 function calcGrade(phase) {
@@ -803,20 +816,88 @@ async function submitAddRecord(e) {
         week: parseInt(document.getElementById("ar-week").value) || 0,
         image: document.getElementById("ar-image-url").value,
     };
+
+    const isEdit = !!editingRecordId;
+    const url = isEdit ? "/api/record/update" : "/api/record/add";
+    if (isEdit) payload._id = editingRecordId;
+
     try {
-        const res = await fetch("/api/record/add", {
+        const res = await fetch(url, {
             method: "POST",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         });
         if (res.status === 401) { logout(); return; }
         const data = await res.json();
-        if (!res.ok) { alert(data.detail || "등록 실패"); return; }
+        if (!res.ok) { alert(data.detail || (isEdit ? "수정 실패" : "등록 실패")); return; }
         alert(data.message);
         closeAddRecordModal();
         fetchSummary();
     } catch (e) {
-        alert("등록 실패: " + e.message);
+        alert((isEdit ? "수정" : "등록") + " 실패: " + e.message);
+    }
+}
+
+// --- Edit / Delete Record ---
+function editRecord(id) {
+    if (!lastSummaryData) return;
+    const r = lastSummaryData.records.find(rec => rec._id === id);
+    if (!r) { alert("레코드를 찾을 수 없습니다."); return; }
+
+    editingRecordId = id;
+    document.getElementById("ar-modal-title").textContent = "위험요소 수정";
+    document.getElementById("ar-modal-desc").textContent = "No." + r.no + " 레코드를 수정합니다.";
+    document.getElementById("ar-submit-btn").textContent = "수정";
+
+    document.getElementById("ar-channel").value = r.channel || "안전점검";
+    document.getElementById("ar-month").value = r.month || "";
+    document.getElementById("ar-person").value = r.person || "";
+    document.getElementById("ar-date").value = r.date || "";
+    document.getElementById("ar-location").value = r.location || "";
+    document.getElementById("ar-content").value = r.content_full || "";
+    document.getElementById("ar-process").value = r.process || "";
+    document.getElementById("ar-disaster").value = r.disaster_type || "";
+    document.getElementById("ar-week").value = r.week || "";
+    document.getElementById("ar-lh-before").value = r.likelihood_before || "";
+    document.getElementById("ar-sv-before").value = r.severity_before || "";
+    document.getElementById("ar-improvement").value = r.improvement_plan || "";
+    document.getElementById("ar-lh-after").value = r.likelihood_after || "";
+    document.getElementById("ar-sv-after").value = r.severity_after || "";
+    document.getElementById("ar-completion").value = r.completion || "미완료";
+
+    calcGrade("before");
+    calcGrade("after");
+
+    // Image
+    if (r.image) {
+        document.getElementById("ar-image-url").value = r.image;
+        document.getElementById("ar-image-name").textContent = "기존 사진";
+        document.getElementById("ar-image-thumb").src = r.image;
+        document.getElementById("ar-image-preview").style.display = "flex";
+    } else {
+        document.getElementById("ar-image-url").value = "";
+        document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
+        document.getElementById("ar-image-preview").style.display = "none";
+    }
+
+    document.getElementById("add-record-modal").style.display = "flex";
+}
+
+async function deleteRecord(id) {
+    if (!confirm("이 위험요소를 삭제하시겠습니까?")) return;
+    try {
+        const res = await fetch("/api/record/delete", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ _id: id }),
+        });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        if (!res.ok) { alert(data.detail || "삭제 실패"); return; }
+        alert(data.message);
+        fetchSummary();
+    } catch (e) {
+        alert("삭제 실패: " + e.message);
     }
 }
 

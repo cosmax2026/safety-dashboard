@@ -452,6 +452,32 @@ td.red { color: #e74c3c; font-weight: 600; }
 }
 .btn-submit:hover { background: #2980b9; }
 
+/* Row Action Buttons */
+.action-cell { white-space: nowrap; }
+.btn-edit {
+    padding: 3px 10px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 4px;
+}
+.btn-edit:hover { background: #2980b9; }
+.btn-row-del {
+    padding: 3px 10px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+}
+.btn-row-del:hover { background: #c0392b; }
+
 /* Image Upload */
 .image-upload-area {
     display: flex;

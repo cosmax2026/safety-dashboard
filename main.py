@@ -2,6 +2,7 @@ import os
 import json
 import hashlib
 import secrets
+import uuid
 from datetime import datetime, date
 from typing import Optional
 
@@ -220,13 +221,14 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
 
     for r in records:
         r["channel"] = channel
+        r["_id"] = uuid.uuid4().hex
+        r["image"] = ""
 
     existing = load_data()
     existing = [r for r in existing if r.get("channel") != channel]
     existing.extend(records)
 
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(existing, f, ensure_ascii=False, indent=2)
+    save_data(existing)
 
     return {"message": f"[{channel}] {len(records)}건 업로드 완료 (전체 {len(existing)}건)", "count": len(records)}
 
@@ -259,14 +261,11 @@ async def delete_channel_data(request: Request):
     before = len(data)
     data = [r for r in data if r.get("channel") != channel]
     after = len(data)
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    save_data(data)
     return {"message": f"[{channel}] {before - after}건 삭제 완료", "remaining": after}
 
 
 # --- Image Upload ---
-import uuid
-
 ALLOWED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic")
 
 @app.post("/api/image/upload")
@@ -328,6 +327,7 @@ async def add_record(request: Request):
     max_no = max((r.get("no", 0) for r in existing), default=0)
 
     record = {
+        "_id": uuid.uuid4().hex,
         "no": max_no + 1,
         "month": month,
         "department": "",
@@ -361,10 +361,83 @@ async def add_record(request: Request):
     }
 
     existing.append(record)
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(existing, f, ensure_ascii=False, indent=2)
+    save_data(existing)
 
     return {"message": f"위험요소 1건 추가 완료 (No.{record['no']})", "record": record}
+
+
+@app.post("/api/record/update")
+async def update_record(request: Request):
+    verify_token(request)
+    body = await request.json()
+    record_id = body.get("_id", "").strip()
+    if not record_id:
+        raise HTTPException(status_code=400, detail="_id가 필요합니다.")
+
+    data = load_data()
+    target = None
+    for r in data:
+        if r.get("_id") == record_id:
+            target = r
+            break
+    if not target:
+        raise HTTPException(status_code=404, detail="레코드를 찾을 수 없습니다.")
+
+    # Update editable fields
+    for field in ("channel", "month", "person", "date", "location", "content",
+                  "process", "disaster_type", "improvement_plan", "completion", "image"):
+        if field in body:
+            target[field] = body[field].strip() if isinstance(body[field], str) else body[field]
+
+    if "date" in body:
+        target["date"] = parse_date(body["date"])
+    if "location" in body:
+        target["location"] = body["location"].strip()
+        target["location_group"] = extract_location_group(target["location"])
+    if "content" in body:
+        target["content_full"] = body["content"].strip()
+        target["content"] = body["content"].strip()[:100]
+    if "week" in body:
+        target["week"] = parse_number(body["week"])
+
+    if "likelihood_before" in body or "severity_before" in body:
+        lh = parse_number(body.get("likelihood_before", target.get("likelihood_before", 0)))
+        sv = parse_number(body.get("severity_before", target.get("severity_before", 0)))
+        target["likelihood_before"] = lh
+        target["severity_before"] = sv
+        target["risk_before"] = lh * sv
+        risk = lh * sv
+        target["grade_before"] = "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D" if risk > 0 else "-"
+
+    if "likelihood_after" in body or "severity_after" in body:
+        lh = parse_number(body.get("likelihood_after", target.get("likelihood_after", 0)))
+        sv = parse_number(body.get("severity_after", target.get("severity_after", 0)))
+        target["likelihood_after"] = lh
+        target["severity_after"] = sv
+        target["risk_after"] = lh * sv
+        risk = lh * sv
+        target["grade_after"] = "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D" if risk > 0 else "-"
+
+    save_data(data)
+    return {"message": "수정 완료", "record": target}
+
+
+@app.post("/api/record/delete")
+async def delete_record(request: Request):
+    verify_token(request)
+    body = await request.json()
+    record_id = body.get("_id", "").strip()
+    if not record_id:
+        raise HTTPException(status_code=400, detail="_id가 필요합니다.")
+
+    data = load_data()
+    before = len(data)
+    data = [r for r in data if r.get("_id") != record_id]
+    if len(data) == before:
+        raise HTTPException(status_code=404, detail="레코드를 찾을 수 없습니다.")
+
+    save_data(data)
+    return {"message": "삭제 완료"}
 
 
 # --- Data API ---
@@ -373,10 +446,24 @@ def load_data() -> list[dict]:
         return []
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
+    dirty = False
     for r in data:
         if "channel" not in r:
             r["channel"] = "안전점검"
+        if "_id" not in r:
+            r["_id"] = uuid.uuid4().hex
+            dirty = True
+        if "image" not in r:
+            r["image"] = ""
+    if dirty:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
     return data
+
+
+def save_data(data: list[dict]):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 @app.get("/api/data")

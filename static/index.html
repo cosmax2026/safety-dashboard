@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Safety Risk Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=4">
+    <link rel="stylesheet" href="/static/style.css?v=5">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -247,6 +247,7 @@
                             <th>반복</th>
                             <th>주차</th>
                             <th>사진</th>
+                            <th>작업</th>
                         </tr>
                     </thead>
                     <tbody id="data-tbody"></tbody>
@@ -277,8 +278,8 @@
     <!-- Direct Input Modal -->
     <div id="add-record-modal" class="modal-overlay">
         <div class="modal-box modal-wide">
-            <h3>위험요소 직접입력</h3>
-            <p>개별 위험요소를 직접 등록합니다.</p>
+            <h3 id="ar-modal-title">위험요소 직접입력</h3>
+            <p id="ar-modal-desc">개별 위험요소를 직접 등록합니다.</p>
             <form id="add-record-form" onsubmit="submitAddRecord(event)">
                 <div class="form-grid">
                     <div class="form-group">
@@ -378,7 +379,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="modal-close" onclick="closeAddRecordModal()">취소</button>
-                    <button type="submit" class="btn-submit">등록</button>
+                    <button type="submit" class="btn-submit" id="ar-submit-btn">등록</button>
                 </div>
             </form>
         </div>
@@ -397,6 +398,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=9"></script>
+    <script src="/static/app.js?v=10"></script>
 </body>
 </html>
