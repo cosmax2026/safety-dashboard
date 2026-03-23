@@ -102,13 +102,14 @@ def extract_location_group(location: str) -> str:
 def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
     """
     ZIP + XML 기반으로 엑셀 내 이미지를 추출.
+    Microsoft 365 richData 형식 (셀 내 이미지) 지원.
     Returns {sheet_name: {row_number(1-based): image_url}}.
     """
     result: dict[str, dict[int, str]] = {}
     NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
     NS_S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-    NS_XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
-    NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    NS_RD = "http://schemas.microsoft.com/office/spreadsheetml/2017/richdata"
+    NS_RVREL = "http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel"
 
     try:
         with zipfile.ZipFile(file_path, 'r') as zf:
@@ -122,7 +123,7 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
             if not media_data:
                 return result
 
-            # 2) workbook.xml.rels -> rId → sheet path
+            # 2) workbook.xml.rels → rId to sheet path
             rid_to_path: dict[str, str] = {}
             wb_rels = 'xl/_rels/workbook.xml.rels'
             if wb_rels in namelist:
@@ -135,7 +136,7 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
                         else:
                             rid_to_path[rid] = 'xl/' + target.lstrip('./')
 
-            # 3) workbook.xml -> sheet name → rId → path
+            # 3) workbook.xml → sheet name to sheet path
             sheet_files: dict[str, str] = {}
             if 'xl/workbook.xml' in namelist:
                 wb_root = ET.fromstring(zf.read('xl/workbook.xml'))
@@ -145,87 +146,84 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
                     if sname and rid and rid in rid_to_path:
                         sheet_files[sname] = rid_to_path[rid]
 
-            # 4) Per sheet: find drawing, parse anchors
-            for sheet_name, sheet_path in sheet_files.items():
-                # sheet rels file
-                parts = sheet_path.rsplit('/', 1)
-                rels_path = (parts[0] + '/_rels/' + parts[1] + '.rels') if len(parts) == 2 else ('_rels/' + parts[0] + '.rels')
-                if rels_path not in namelist:
-                    continue
+            # 4) Try richData format (Microsoft 365 "Place in Cell" images)
+            richdata_rels = 'xl/richData/_rels/richValueRel.xml.rels'
+            richdata_rel = 'xl/richData/richValueRel.xml'
+            richdata_rv = 'xl/richData/rdrichvalue.xml'
 
-                # Find drawing relationship
-                drawing_path = None
-                for rel in ET.fromstring(zf.read(rels_path)):
-                    rtype = rel.get('Type', '')
-                    if 'drawing' in rtype and 'vml' not in rtype.lower():
-                        target = rel.get('Target', '')
-                        if target.startswith('..'):
-                            drawing_path = 'xl/' + target.replace('../', '')
-                        elif target.startswith('/'):
-                            drawing_path = target.lstrip('/')
-                        else:
-                            drawing_path = '/'.join(sheet_path.rsplit('/', 1)[:-1]) + '/' + target
-                        break
-                if not drawing_path or drawing_path not in namelist:
-                    continue
-
-                # Drawing rels -> rId → media filename
-                d_parts = drawing_path.rsplit('/', 1)
-                d_rels = (d_parts[0] + '/_rels/' + d_parts[1] + '.rels') if len(d_parts) == 2 else ('_rels/' + d_parts[0] + '.rels')
+            if all(f in namelist for f in (richdata_rels, richdata_rel, richdata_rv)):
+                # 4a) richValueRel.xml.rels → rId to media filename
                 rid_to_media: dict[str, str] = {}
-                if d_rels in namelist:
-                    for rel in ET.fromstring(zf.read(d_rels)):
-                        rid = rel.get('Id', '')
-                        target = rel.get('Target', '')
-                        if rid and target:
-                            rid_to_media[rid] = target.split('/')[-1]
+                for rel in ET.fromstring(zf.read(richdata_rels)):
+                    rid = rel.get('Id', '')
+                    target = rel.get('Target', '')
+                    if rid and target:
+                        rid_to_media[rid] = target.split('/')[-1]
 
-                # Parse drawing XML anchors
-                drawing_root = ET.fromstring(zf.read(drawing_path))
-                row_images: dict[int, str] = {}
+                # 4b) richValueRel.xml → ordered list of rIds
+                rvrel_root = ET.fromstring(zf.read(richdata_rel))
+                rel_rids: list[str] = []
+                for rel_el in rvrel_root:
+                    rid = rel_el.get(f'{{{NS_R}}}id', '')
+                    rel_rids.append(rid)
 
-                for anchor in drawing_root:
-                    tag = anchor.tag.split('}')[-1] if '}' in anchor.tag else anchor.tag
-                    if tag not in ('twoCellAnchor', 'oneCellAnchor'):
-                        continue
+                # 4c) rdrichvalue.xml → rv index to media filename
+                #     rv[i].v[0] = index into rel_rids
+                rv_root = ET.fromstring(zf.read(richdata_rv))
+                vm_to_media: dict[int, str] = {}  # vm (1-based) → media filename
+                for i, rv in enumerate(rv_root.findall(f'{{{NS_RD}}}rv')):
+                    vals = [v.text for v in rv.findall(f'{{{NS_RD}}}v')]
+                    if vals:
+                        try:
+                            rel_idx = int(vals[0])
+                            if 0 <= rel_idx < len(rel_rids):
+                                rid = rel_rids[rel_idx]
+                                media_name = rid_to_media.get(rid, '')
+                                if media_name:
+                                    vm_to_media[i + 1] = media_name  # vm is 1-based
+                        except (ValueError, IndexError):
+                            pass
 
-                    from_el = anchor.find(f'{{{NS_XDR}}}from')
-                    if from_el is None:
+                # 4d) Parse each sheet XML for cells with vm attribute
+                for sheet_name, sheet_path in sheet_files.items():
+                    if sheet_path not in namelist:
                         continue
-                    row_el = from_el.find(f'{{{NS_XDR}}}row')
-                    if row_el is None or not row_el.text:
-                        continue
-                    row = int(row_el.text) + 1  # 0-based → 1-based
+                    sheet_root = ET.fromstring(zf.read(sheet_path))
+                    row_images: dict[int, str] = {}
 
-                    # Find blip (image reference)
-                    blip = None
-                    for elem in anchor.iter(f'{{{NS_A}}}blip'):
-                        blip = elem
-                        break
-                    if blip is None:
-                        continue
-                    embed = blip.get(f'{{{NS_R}}}embed', '')
-                    if not embed or embed not in rid_to_media:
-                        continue
+                    for cell in sheet_root.iter(f'{{{NS_S}}}c'):
+                        vm = cell.get('vm')
+                        if vm is None:
+                            continue
+                        ref = cell.get('r', '')
+                        col = ''.join(c for c in ref if c.isalpha())
+                        # Column N = before-improvement photo (primary)
+                        if col != 'N':
+                            continue
 
-                    media_name = rid_to_media[embed]
-                    if media_name not in media_data:
-                        continue
-                    if row in row_images:
-                        continue
+                        row_num = int(''.join(c for c in ref if c.isdigit()))
+                        vm_idx = int(vm)
+                        media_name = vm_to_media.get(vm_idx, '')
+                        if not media_name or media_name not in media_data:
+                            continue
+                        if row_num in row_images:
+                            continue
 
-                    # Save image file
-                    ext = os.path.splitext(media_name)[1] or '.png'
-                    fname = f"{uuid.uuid4().hex}{ext}"
-                    fpath = os.path.join(IMAGE_DIR, fname)
-                    with open(fpath, "wb") as f:
-                        f.write(media_data[media_name])
-                    row_images[row] = f"/uploads/images/{fname}"
+                        # Save image file
+                        ext = os.path.splitext(media_name)[1] or '.png'
+                        fname = f"{uuid.uuid4().hex}{ext}"
+                        fpath = os.path.join(IMAGE_DIR, fname)
+                        with open(fpath, "wb") as f:
+                            f.write(media_data[media_name])
+                        row_images[row_num] = f"/uploads/images/{fname}"
 
-                if row_images:
-                    result[sheet_name] = row_images
+                    if row_images:
+                        result[sheet_name] = row_images
+
     except Exception as e:
         print(f"[extract_excel_images] error: {e}")
+        import traceback
+        traceback.print_exc()
 
     return result
 
@@ -363,7 +361,8 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
     for r in records:
         r["channel"] = channel
         r["_id"] = uuid.uuid4().hex
-        r["image"] = ""
+        if "image" not in r or not r["image"]:
+            r["image"] = ""
 
     existing = load_data()
     existing = [r for r in existing if r.get("channel") != channel]
