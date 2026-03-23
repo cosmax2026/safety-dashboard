@@ -169,7 +169,10 @@
             <!-- Charts Row 1 -->
             <div class="chart-row">
                 <div class="chart-box wide">
-                    <h3>장소별 위험요소 현황</h3>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                        <h3 style="margin:0;">장소별 위험요소 현황</h3>
+                        <button id="btn-loc-toggle" class="btn-toggle" onclick="toggleLocationView()">카테고리별</button>
+                    </div>
                     <canvas id="chart-location"></canvas>
                 </div>
                 <div class="chart-box">

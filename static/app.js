@@ -1,5 +1,7 @@
 let TOKEN = sessionStorage.getItem("token") || "";
 let chartInstances = {};
+let locationViewMode = "category"; // "category" or "detail"
+let lastSummaryData = null;
 
 // --- Auth ---
 async function login() {
@@ -155,6 +157,7 @@ async function fetchSummary() {
             displayRecords = displayRecords.filter(r => !r.is_repeat);
         }
 
+        lastSummaryData = data;
         updateStats(data);
         updateCharts(data);
         updateTable(displayRecords);
@@ -202,31 +205,151 @@ function destroyChart(id) {
     }
 }
 
+function toggleLocationView() {
+    locationViewMode = locationViewMode === "category" ? "detail" : "category";
+    const btn = document.getElementById("btn-loc-toggle");
+    if (locationViewMode === "category") {
+        btn.textContent = "카테고리별";
+        btn.classList.remove("active");
+    } else {
+        btn.textContent = "장소별";
+        btn.classList.add("active");
+    }
+    if (lastSummaryData) renderLocationChart(lastSummaryData);
+}
+
+function renderLocationChart(data) {
+    destroyChart("chart-location");
+
+    if (locationViewMode === "category") {
+        // Category grouped view
+        const catStats = data.location_category_stats || {};
+        const catOrder = Object.keys(catStats).sort((a, b) => {
+            const totalA = (catStats[a].A || 0) + (catStats[a].B || 0) + (catStats[a].C || 0) + (catStats[a].D || 0);
+            const totalB = (catStats[b].A || 0) + (catStats[b].B || 0) + (catStats[b].C || 0) + (catStats[b].D || 0);
+            return totalB - totalA;
+        });
+
+        // Build labels and data: category header + individual locations
+        const labels = [];
+        const dataA = [], dataB = [], dataC = [], dataD = [];
+        const bgA = [], bgB = [], bgC = [], bgD = [];
+        const borderTop = [];
+
+        catOrder.forEach(cat => {
+            const locs = catStats[cat].locations || {};
+            const locKeys = Object.keys(locs).sort();
+
+            locKeys.forEach(loc => {
+                labels.push(loc);
+                dataA.push(locs[loc].A || 0);
+                dataB.push(locs[loc].B || 0);
+                dataC.push(locs[loc].C || 0);
+                dataD.push(locs[loc].D || 0);
+                bgA.push(GRADE_COLORS.A);
+                bgB.push(GRADE_COLORS.B);
+                bgC.push(GRADE_COLORS.C);
+                bgD.push(GRADE_COLORS.D);
+                borderTop.push(cat);
+            });
+        });
+
+        const datasets = [
+            { label: "A등급", data: dataA, backgroundColor: bgA, borderRadius: 4 },
+            { label: "B등급", data: dataB, backgroundColor: bgB, borderRadius: 4 },
+            { label: "C등급", data: dataC, backgroundColor: bgC, borderRadius: 4 },
+            { label: "D등급", data: dataD, backgroundColor: bgD, borderRadius: 4 },
+        ];
+
+        // Category separator plugin
+        const categoryPlugin = {
+            id: "categoryBracket",
+            afterDraw(chart) {
+                const { ctx, scales: { x } } = chart;
+                const catGroups = {};
+                labels.forEach((lbl, i) => {
+                    const cat = borderTop[i];
+                    if (!catGroups[cat]) catGroups[cat] = { start: i, end: i };
+                    else catGroups[cat].end = i;
+                });
+
+                const catColors = { "화성": "#e74c3c", "평택": "#3498db", "판교": "#27ae60", "고렴": "#f39c12", "기타": "#95a5a6" };
+                const y = chart.chartArea.bottom + 36;
+
+                ctx.save();
+                Object.entries(catGroups).forEach(([cat, { start, end }]) => {
+                    const x1 = x.getPixelForValue(start);
+                    const x2 = x.getPixelForValue(end);
+                    const midX = (x1 + x2) / 2;
+                    const color = catColors[cat] || "#666";
+
+                    // Bracket line
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y - 4);
+                    ctx.lineTo(x1, y);
+                    ctx.lineTo(x2, y);
+                    ctx.lineTo(x2, y - 4);
+                    ctx.stroke();
+
+                    // Category label
+                    ctx.fillStyle = color;
+                    ctx.font = "bold 12px 'Segoe UI', sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(cat, midX, y + 16);
+                });
+                ctx.restore();
+            }
+        };
+
+        chartInstances["chart-location"] = new Chart(
+            document.getElementById("chart-location"),
+            {
+                type: "bar",
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: true, position: "top" } },
+                    layout: { padding: { bottom: 40 } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                        y: { beginAtZero: true, ticks: { stepSize: 5 } },
+                    },
+                },
+                plugins: [categoryPlugin],
+            }
+        );
+    } else {
+        // Detail view (original)
+        const locLabels = Object.keys(data.location_stats);
+        const locDatasets = ["A", "B", "C", "D"].map(g => ({
+            label: g + "등급",
+            data: locLabels.map(l => data.location_stats[l][g] || 0),
+            backgroundColor: GRADE_COLORS[g],
+            borderRadius: 4,
+        }));
+        chartInstances["chart-location"] = new Chart(
+            document.getElementById("chart-location"),
+            {
+                type: "bar",
+                data: { labels: locLabels, datasets: locDatasets },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: true, position: "top" } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { stepSize: 5 } },
+                    },
+                },
+            }
+        );
+    }
+}
+
 function updateCharts(data) {
     // 1. Location bar chart
-    destroyChart("chart-location");
-    const locLabels = Object.keys(data.location_stats);
-    const locDatasets = ["A", "B", "C", "D"].map(g => ({
-        label: g + "등급",
-        data: locLabels.map(l => data.location_stats[l][g] || 0),
-        backgroundColor: GRADE_COLORS[g],
-        borderRadius: 4,
-    }));
-    chartInstances["chart-location"] = new Chart(
-        document.getElementById("chart-location"),
-        {
-            type: "bar",
-            data: { labels: locLabels, datasets: locDatasets },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: true, position: "top" } },
-                scales: {
-                    x: { grid: { display: false } },
-                    y: { beginAtZero: true, ticks: { stepSize: 5 } },
-                },
-            },
-        }
-    );
+    renderLocationChart(data);
 
     // 2. Grade donut
     destroyChart("chart-grade");

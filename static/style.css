@@ -388,6 +388,21 @@ td.red { color: #e74c3c; font-weight: 600; }
 }
 .channel-select:focus { border-color: #e74c3c; }
 
+/* Toggle Button */
+.btn-toggle {
+    padding: 5px 14px;
+    background: #ecf0f1;
+    color: #555;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.btn-toggle:hover { background: #dfe6e9; }
+.btn-toggle.active { background: #e74c3c; color: white; border-color: #e74c3c; }
+
 /* Responsive */
 @media (max-width: 1200px) {
     .stats-cards { grid-template-columns: repeat(3, 1fr); }
