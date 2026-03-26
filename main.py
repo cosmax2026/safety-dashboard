@@ -310,7 +310,7 @@ app.add_middleware(
 )
 
 
-# --- Auth (kept for backward compat, but no longer enforced) ---
+# --- Auth (삭제 작업에만 사용) ---
 @app.post("/api/login")
 async def login(request: Request):
     body = await request.json()
@@ -318,10 +318,13 @@ async def login(request: Request):
         token = secrets.token_hex(32)
         SESSION_TOKENS.add(token)
         return {"token": token}
-    # Always return a token now (no auth required)
-    token = secrets.token_hex(32)
-    SESSION_TOKENS.add(token)
-    return {"token": token}
+    raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
+
+
+def verify_token(request: Request):
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if token not in SESSION_TOKENS:
+        raise HTTPException(status_code=401, detail="삭제 권한이 필요합니다. 비밀번호를 입력하세요.")
 
 
 # --- Excel Parsing ---
@@ -702,6 +705,7 @@ async def channel_status():
 
 @app.post("/api/channels/delete")
 async def delete_channel_data(request: Request):
+    verify_token(request)
     body = await request.json()
     channel = body.get("channel")
     if not channel:
@@ -906,6 +910,7 @@ async def update_record(request: Request):
 
 @app.post("/api/record/delete")
 async def delete_record(request: Request):
+    verify_token(request)
     body = await request.json()
     record_id = body.get("_id", "").strip()
     if not record_id:

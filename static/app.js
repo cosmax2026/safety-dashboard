@@ -2,6 +2,32 @@ let chartInstances = {};
 let locationViewMode = "grade";
 let lastSummaryData = null;
 let editingRecordId = null;
+let deleteToken = "";
+
+// --- Delete Auth ---
+async function ensureDeleteAuth() {
+    if (deleteToken) return true;
+    const pw = prompt("삭제하려면 관리자 비밀번호를 입력하세요:");
+    if (!pw) return false;
+    try {
+        const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pw }),
+        });
+        if (!res.ok) { alert("비밀번호가 올바르지 않습니다."); return false; }
+        const data = await res.json();
+        deleteToken = data.token;
+        return true;
+    } catch (e) {
+        alert("인증 실패: " + e.message);
+        return false;
+    }
+}
+
+function deleteAuthHeaders() {
+    return { "Content-Type": "application/json", "Authorization": "Bearer " + deleteToken };
+}
 
 // --- Upload ---
 async function uploadFile(input) {
@@ -625,12 +651,14 @@ function closeManageModal() {
 
 async function deleteChannelData(channel) {
     if (!confirm("[" + channel + "] 데이터를 삭제하시겠습니까?")) return;
+    if (!await ensureDeleteAuth()) return;
     try {
         const res = await fetch("/api/channels/delete", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: deleteAuthHeaders(),
             body: JSON.stringify({ channel: channel }),
         });
+        if (res.status === 401) { deleteToken = ""; alert("인증이 만료되었습니다. 다시 시도하세요."); return; }
         const data = await res.json();
         alert(data.message);
         showManageModal();
@@ -840,12 +868,14 @@ function editRecord(id) {
 
 async function deleteRecord(id) {
     if (!confirm("이 위험요소를 삭제하시겠습니까?")) return;
+    if (!await ensureDeleteAuth()) return;
     try {
         const res = await fetch("/api/record/delete", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: deleteAuthHeaders(),
             body: JSON.stringify({ _id: id }),
         });
+        if (res.status === 401) { deleteToken = ""; alert("인증이 만료되었습니다. 다시 시도하세요."); return; }
         const data = await res.json();
         if (!res.ok) { alert(data.detail || "삭제 실패"); return; }
         alert(data.message);
