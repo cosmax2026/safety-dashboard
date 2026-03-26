@@ -1,48 +1,7 @@
-let TOKEN = sessionStorage.getItem("token") || "";
 let chartInstances = {};
-let locationViewMode = "grade"; // "grade" or "disaster"
+let locationViewMode = "grade";
 let lastSummaryData = null;
-let editingRecordId = null; // null = add mode, string = edit mode
-
-// --- Auth ---
-async function login() {
-    const pw = document.getElementById("password-input").value;
-    const errEl = document.getElementById("login-error");
-    try {
-        const res = await fetch("/api/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: pw }),
-        });
-        if (!res.ok) {
-            errEl.textContent = "비밀번호가 올바르지 않습니다.";
-            return;
-        }
-        const data = await res.json();
-        TOKEN = data.token;
-        sessionStorage.setItem("token", TOKEN);
-        showDashboard();
-    } catch (e) {
-        errEl.textContent = "서버 연결 실패";
-    }
-}
-
-function logout() {
-    TOKEN = "";
-    sessionStorage.removeItem("token");
-    document.getElementById("login-screen").style.display = "flex";
-    document.getElementById("dashboard").style.display = "none";
-}
-
-function showDashboard() {
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("dashboard").style.display = "block";
-    fetchSummary();
-}
-
-function authHeaders() {
-    return { Authorization: "Bearer " + TOKEN };
-}
+let editingRecordId = null;
 
 // --- Upload ---
 async function uploadFile(input) {
@@ -56,10 +15,8 @@ async function uploadFile(input) {
     try {
         const res = await fetch("/api/upload", {
             method: "POST",
-            headers: authHeaders(),
             body: formData,
         });
-        if (res.status === 401) { logout(); return; }
         const data = await res.json();
         alert(data.message || "업로드 완료");
         fetchSummary();
@@ -137,10 +94,7 @@ async function fetchSummary() {
     });
 
     try {
-        const res = await fetch("/api/summary?" + params.toString(), {
-            headers: authHeaders(),
-        });
-        if (res.status === 401) { logout(); return; }
+        const res = await fetch("/api/summary?" + params.toString());
         const data = await res.json();
 
         if (data.total === 0 && !filters.keyword && filters.month === "전체") {
@@ -149,7 +103,6 @@ async function fetchSummary() {
             document.getElementById("no-data").style.display = "none";
         }
 
-        // Client-side repeat filter
         let displayRecords = data.records;
         const repeatFilter = document.getElementById("f-repeat").value;
         if (repeatFilter === "반복") {
@@ -230,7 +183,6 @@ function renderLocationChart(data) {
     const locLabels = Object.keys(data.location_stats);
 
     if (locationViewMode === "disaster") {
-        // Disaster type view
         const locDisaster = data.location_disaster_stats || {};
         const allTypes = new Set();
         Object.values(locDisaster).forEach(obj => Object.keys(obj).forEach(k => allTypes.add(k)));
@@ -263,7 +215,6 @@ function renderLocationChart(data) {
             }
         );
     } else {
-        // Grade view (default)
         const locDatasets = ["A", "B", "C", "D"].map(g => ({
             label: g + "등급",
             data: locLabels.map(l => data.location_stats[l][g] || 0),
@@ -289,10 +240,8 @@ function renderLocationChart(data) {
 }
 
 function updateCharts(data) {
-    // 1. Location bar chart
     renderLocationChart(data);
 
-    // 2. Cumulative remaining incomplete by grade (bar + trend lines)
     destroyChart("chart-grade");
     const gradeCumul = data.grade_cumulative || {};
     const cumulMonths = Object.keys(gradeCumul);
@@ -309,12 +258,10 @@ function updateCharts(data) {
             data: {
                 labels: cumulLabels,
                 datasets: [
-                    // Stacked bars
                     { label: "D등급", data: dData, backgroundColor: GRADE_COLORS.D + "66", borderRadius: 2, stack: "bar", order: 2 },
                     { label: "C등급", data: cData, backgroundColor: GRADE_COLORS.C + "66", borderRadius: 2, stack: "bar", order: 2 },
                     { label: "B등급", data: bData, backgroundColor: GRADE_COLORS.B + "66", borderRadius: 2, stack: "bar", order: 2 },
                     { label: "A등급", data: aData, backgroundColor: GRADE_COLORS.A + "66", borderRadius: 2, stack: "bar", order: 2 },
-                    // Trend lines
                     { label: "D추세", data: dData, type: "line", borderColor: GRADE_COLORS.D, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.D, tension: 0.3, fill: false, order: 1 },
                     { label: "C추세", data: cData, type: "line", borderColor: GRADE_COLORS.C, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.C, tension: 0.3, fill: false, order: 1 },
                     { label: "B추세", data: bData, type: "line", borderColor: GRADE_COLORS.B, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.B, tension: 0.3, fill: false, order: 1 },
@@ -350,7 +297,6 @@ function updateCharts(data) {
         }
     );
 
-    // 3. Completion donut
     destroyChart("chart-completion");
     chartInstances["chart-completion"] = new Chart(
         document.getElementById("chart-completion"),
@@ -367,14 +313,11 @@ function updateCharts(data) {
             options: {
                 responsive: true,
                 cutout: "60%",
-                plugins: {
-                    legend: { position: "top" },
-                },
+                plugins: { legend: { position: "top" } },
             },
         }
     );
 
-    // 4. Weekly bar chart
     destroyChart("chart-week");
     const weekLabels = Object.keys(data.week_stats);
     const weekData = weekLabels.map(k => data.week_stats[k]);
@@ -402,7 +345,6 @@ function updateCharts(data) {
         }
     );
 
-    // 5. Disaster type chart (category tab)
     destroyChart("chart-disaster");
     const disLabels = Object.keys(data.disaster_stats);
     const disData = disLabels.map(k => data.disaster_stats[k]);
@@ -429,7 +371,6 @@ function updateCharts(data) {
         }
     );
 
-    // 6. Process chart (category tab)
     destroyChart("chart-process");
     const procLabels = Object.keys(data.process_stats);
     const procData = procLabels.map(k => data.process_stats[k]);
@@ -461,7 +402,6 @@ function updateCharts(data) {
         }
     );
 
-    // 7. Channel charts (visible only with multi-channel data)
     destroyChart("chart-channel");
     destroyChart("chart-channel-grade");
     const channelRow = document.getElementById("channel-chart-row");
@@ -524,7 +464,7 @@ function updateCharts(data) {
                 },
             }
         );
-        // Channel summary table
+
         const tableWrap = document.getElementById("channel-table-wrap");
         tableWrap.style.display = "";
         const tbody = document.getElementById("channel-summary-tbody");
@@ -551,7 +491,6 @@ function updateCharts(data) {
                 '<td style="font-weight:600;color:' + (chRate >= 80 ? '#27ae60' : chRate >= 50 ? '#f39c12' : '#e74c3c') + '">' + chRate + '%</td>';
             tbody.appendChild(tr);
         });
-        // Total row
         const totalRate = totalRow.count > 0 ? (totalRow.comp / totalRow.count * 100).toFixed(1) : 0;
         const totalTr = document.createElement("tr");
         totalTr.style.background = "#f0f4ff";
@@ -642,6 +581,10 @@ function switchTab(tabName, btn) {
     document.querySelectorAll(".tab").forEach(el => el.classList.remove("active"));
     document.getElementById("tab-" + tabName).style.display = "block";
     btn.classList.add("active");
+
+    if (tabName === "history") {
+        fetchUploadHistory();
+    }
 }
 
 // --- Data Management ---
@@ -651,8 +594,7 @@ async function showManageModal() {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">불러오는 중...</div>';
 
     try {
-        const res = await fetch("/api/channels/status", { headers: authHeaders() });
-        if (res.status === 401) { logout(); return; }
+        const res = await fetch("/api/channels/status");
         const data = await res.json();
 
         list.innerHTML = "";
@@ -686,10 +628,9 @@ async function deleteChannelData(channel) {
     try {
         const res = await fetch("/api/channels/delete", {
             method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ channel: channel }),
         });
-        if (res.status === 401) { logout(); return; }
         const data = await res.json();
         alert(data.message);
         showManageModal();
@@ -710,15 +651,14 @@ async function printReport() {
         Object.entries(filters).forEach(([k, v]) => {
             if (v && v !== "전체" && v !== "0") params.append(k, v);
         });
-        const res = await fetch("/api/summary?" + params.toString(), { headers: authHeaders() });
-        if (res.status === 401) { logout(); return; }
+        const res = await fetch("/api/summary?" + params.toString());
         const data = await res.json();
         if (!data.records || data.records.length === 0) {
             alert('리포트를 생성할 데이터가 없습니다.');
             return;
         }
         window.__reportData = data;
-        window.open("/static/report.html#" + encodeURIComponent(TOKEN), "_blank");
+        window.open("/static/report.html", "_blank");
     } catch (e) {
         alert('리포트 생성 실패: ' + e.message);
     } finally {
@@ -784,10 +724,8 @@ async function previewImage(phase) {
     try {
         const res = await fetch("/api/image/upload", {
             method: "POST",
-            headers: authHeaders(),
             body: formData,
         });
-        if (res.status === 401) { logout(); return; }
         if (!res.ok) { alert("이미지 업로드 실패"); return; }
         const data = await res.json();
         document.getElementById("ar-image" + suffix + "-url").value = data.url;
@@ -833,10 +771,9 @@ async function submitAddRecord(e) {
     try {
         const res = await fetch(url, {
             method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         });
-        if (res.status === 401) { logout(); return; }
         const data = await res.json();
         if (!res.ok) { alert(data.detail || (isEdit ? "수정 실패" : "등록 실패")); return; }
         alert(data.message);
@@ -877,7 +814,6 @@ function editRecord(id) {
     calcGrade("before");
     calcGrade("after");
 
-    // Image (before)
     if (r.image) {
         document.getElementById("ar-image-url").value = r.image;
         document.getElementById("ar-image-name").textContent = "기존 사진";
@@ -888,7 +824,6 @@ function editRecord(id) {
         document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
         document.getElementById("ar-image-preview").style.display = "none";
     }
-    // Image (after)
     if (r.image_after) {
         document.getElementById("ar-image-after-url").value = r.image_after;
         document.getElementById("ar-image-after-name").textContent = "기존 사진";
@@ -908,10 +843,9 @@ async function deleteRecord(id) {
     try {
         const res = await fetch("/api/record/delete", {
             method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ _id: id }),
         });
-        if (res.status === 401) { logout(); return; }
         const data = await res.json();
         if (!res.ok) { alert(data.detail || "삭제 실패"); return; }
         alert(data.message);
@@ -937,12 +871,139 @@ function showImageModal(src) {
     modal.style.display = "flex";
 }
 
-// --- Init ---
-if (TOKEN) {
-    fetch("/api/summary", { headers: authHeaders() })
-        .then(res => {
-            if (res.ok) showDashboard();
-            else logout();
-        })
-        .catch(() => logout());
+// --- Upload History ---
+async function fetchUploadHistory() {
+    try {
+        const res = await fetch("/api/uploads/history");
+        const data = await res.json();
+        renderUploadHistory(data.uploads || []);
+    } catch (e) {
+        console.error("History fetch error:", e);
+    }
 }
+
+function renderUploadHistory(uploads) {
+    const tbody = document.getElementById("history-tbody");
+    tbody.innerHTML = "";
+
+    const sel1 = document.getElementById("compare-upload-1");
+    const sel2 = document.getElementById("compare-upload-2");
+    sel1.innerHTML = '<option value="">선택</option>';
+    sel2.innerHTML = '<option value="">선택</option>';
+
+    uploads.forEach(u => {
+        const tr = document.createElement("tr");
+        const sourceLabel = u.source === "excel" ? "엑셀" : u.source === "manual" ? "직접입력" : u.source;
+        tr.innerHTML =
+            '<td>' + u.id + '</td>' +
+            '<td>' + escapeHtml(u.upload_date) + '</td>' +
+            '<td>' + escapeHtml(u.channel) + '</td>' +
+            '<td><span class="source-badge source-' + u.source + '">' + sourceLabel + '</span></td>' +
+            '<td>' + u.record_count + '건</td>' +
+            '<td>' + escapeHtml(u.filename || '-') + '</td>';
+        tbody.appendChild(tr);
+
+        // Only add excel uploads to comparison dropdowns (they have bulk records)
+        if (u.source === "excel" || u.source === "migration") {
+            const dateShort = (u.upload_date || "").substring(0, 16);
+            const label = dateShort + ' | ' + u.channel + ' (' + u.record_count + '건)';
+            sel1.innerHTML += '<option value="' + u.id + '">' + label + '</option>';
+            sel2.innerHTML += '<option value="' + u.id + '">' + label + '</option>';
+        }
+    });
+
+    if (uploads.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;padding:20px;">업로드 이력이 없습니다.</td></tr>';
+    }
+}
+
+// --- Comparison ---
+async function compareUploads() {
+    const id1 = document.getElementById("compare-upload-1").value;
+    const id2 = document.getElementById("compare-upload-2").value;
+    if (!id1 || !id2) { alert("비교할 두 개의 업로드를 선택하세요."); return; }
+    if (id1 === id2) { alert("서로 다른 업로드를 선택하세요."); return; }
+
+    try {
+        const res = await fetch("/api/uploads/compare?upload_id_1=" + id1 + "&upload_id_2=" + id2);
+        if (!res.ok) { alert("비교 실패"); return; }
+        const data = await res.json();
+        renderComparison(data);
+    } catch (e) {
+        alert("비교 실패: " + e.message);
+    }
+}
+
+function renderComparison(data) {
+    const container = document.getElementById("compare-results");
+    container.style.display = "block";
+
+    const u1 = data.upload_1;
+    const u2 = data.upload_2;
+    const totalDiff = u2.total - u1.total;
+    const totalDiffStr = totalDiff > 0 ? '+' + totalDiff : totalDiff.toString();
+    const rateDiff = (u2.improvement_rate - u1.improvement_rate).toFixed(1);
+    const rateDiffStr = rateDiff > 0 ? '+' + rateDiff : rateDiff;
+
+    let html = '<div class="compare-summary">';
+
+    // Summary cards
+    html += '<div class="compare-cards">';
+    html += '<div class="compare-card">';
+    html += '<div class="compare-card-title">이전 (' + escapeHtml((u1.upload_date || "").substring(0, 10)) + ')</div>';
+    html += '<div class="compare-stat">건수: <strong>' + u1.total + '</strong></div>';
+    html += '<div class="compare-stat">A: ' + u1.grades.A + ' | B: ' + u1.grades.B + ' | C: ' + u1.grades.C + ' | D: ' + u1.grades.D + '</div>';
+    html += '<div class="compare-stat">개선률: <strong>' + u1.improvement_rate + '%</strong></div>';
+    html += '</div>';
+
+    html += '<div class="compare-arrow-box"><span class="compare-arrow-icon">&#8594;</span></div>';
+
+    html += '<div class="compare-card">';
+    html += '<div class="compare-card-title">이후 (' + escapeHtml((u2.upload_date || "").substring(0, 10)) + ')</div>';
+    html += '<div class="compare-stat">건수: <strong>' + u2.total + '</strong> <span class="diff ' + (totalDiff >= 0 ? 'plus' : 'minus') + '">(' + totalDiffStr + ')</span></div>';
+    html += '<div class="compare-stat">A: ' + u2.grades.A + ' | B: ' + u2.grades.B + ' | C: ' + u2.grades.C + ' | D: ' + u2.grades.D + '</div>';
+    html += '<div class="compare-stat">개선률: <strong>' + u2.improvement_rate + '%</strong> <span class="diff ' + (rateDiff >= 0 ? 'plus' : 'minus') + '">(' + rateDiffStr + '%)</span></div>';
+    html += '</div>';
+    html += '</div>';
+
+    // Change summary
+    html += '<div class="compare-change-summary">';
+    html += '<span class="change-tag new">신규 ' + data.new_records.length + '건</span>';
+    html += '<span class="change-tag removed">제거 ' + data.removed_records.length + '건</span>';
+    html += '<span class="change-tag changed">변경 ' + data.changed_records.length + '건</span>';
+    html += '</div>';
+
+    // Detail tables
+    if (data.new_records.length > 0) {
+        html += '<h4 class="compare-detail-title">신규 추가된 위험요소</h4>';
+        html += '<table class="compare-detail-table"><thead><tr><th>장소</th><th>내용</th><th>등급</th></tr></thead><tbody>';
+        data.new_records.forEach(r => {
+            html += '<tr><td>' + escapeHtml(r.location) + '</td><td>' + escapeHtml(r.content) + '</td><td><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></td></tr>';
+        });
+        html += '</tbody></table>';
+    }
+
+    if (data.removed_records.length > 0) {
+        html += '<h4 class="compare-detail-title">제거된 위험요소</h4>';
+        html += '<table class="compare-detail-table"><thead><tr><th>장소</th><th>내용</th><th>등급</th></tr></thead><tbody>';
+        data.removed_records.forEach(r => {
+            html += '<tr><td>' + escapeHtml(r.location) + '</td><td>' + escapeHtml(r.content) + '</td><td><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></td></tr>';
+        });
+        html += '</tbody></table>';
+    }
+
+    if (data.changed_records.length > 0) {
+        html += '<h4 class="compare-detail-title">변경된 위험요소</h4>';
+        html += '<table class="compare-detail-table"><thead><tr><th>내용</th><th>장소</th><th>변경사항</th></tr></thead><tbody>';
+        data.changed_records.forEach(r => {
+            html += '<tr><td>' + escapeHtml(r.content) + '</td><td>' + escapeHtml(r.location) + '</td><td class="change-detail">' + escapeHtml(r.changes) + '</td></tr>';
+        });
+        html += '</tbody></table>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// --- Init ---
+fetchSummary();
