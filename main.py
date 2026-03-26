@@ -1076,6 +1076,15 @@ async def get_summary(
     keyword: Optional[str] = None,
     completion: Optional[str] = None,
 ):
+    try:
+        return await _get_summary_inner(channel, year, month, location, grade, disaster_type, process, person, week, keyword, completion)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Summary error: {str(e)}")
+
+
+async def _get_summary_inner(channel, year, month, location, grade, disaster_type, process, person, week, keyword, completion):
     records = await load_current_records()
 
     if channel and channel != "전체":
@@ -1193,7 +1202,7 @@ async def get_summary(
         try:
             return int(m.replace("월", ""))
         except (ValueError, AttributeError):
-            return m
+            return 0
     grade_trend = dict(sorted(grade_trend.items(), key=lambda x: month_sort_key2(x[0])))
 
     week_stats: dict[str, int] = {}
