@@ -934,6 +934,35 @@ async def get_data():
     return {"records": records, "total": len(records)}
 
 
+@app.get("/api/debug/db")
+async def debug_db():
+    """Temporary debug endpoint to check DB state."""
+    async with async_session() as session:
+        total = (await session.execute(
+            select(func.count()).select_from(RiskRecord)
+        )).scalar()
+        current = (await session.execute(
+            select(func.count()).select_from(RiskRecord).where(RiskRecord.is_current == True)
+        )).scalar()
+        not_current = (await session.execute(
+            select(func.count()).select_from(RiskRecord).where(RiskRecord.is_current == False)
+        )).scalar()
+        null_current = (await session.execute(
+            select(func.count()).select_from(RiskRecord).where(RiskRecord.is_current == None)
+        )).scalar()
+        by_channel = (await session.execute(
+            select(RiskRecord.channel, RiskRecord.is_current, func.count())
+            .group_by(RiskRecord.channel, RiskRecord.is_current)
+        )).all()
+    return {
+        "total_records": total,
+        "is_current_true": current,
+        "is_current_false": not_current,
+        "is_current_null": null_current,
+        "by_channel": [{"channel": r[0], "is_current": r[1], "count": r[2]} for r in by_channel],
+    }
+
+
 # --- Upload History ---
 @app.get("/api/uploads/history")
 async def get_upload_history():
