@@ -1,4 +1,6 @@
-__pycache__/
-*.pyc
-uploads/
+node_modules/
+.next/
 .env
+.env.local
+*.tsbuildinfo
+next-env.d.ts

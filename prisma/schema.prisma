@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Week {
+  id          Int      @id @default(autoincrement())
+  weekLabel   String   @unique
+  periodStart String
+  periodEnd   String
+  author      String   @default("")
+  uploadedAt  DateTime @default(now())
+  filename    String   @default("")
+  tasks       Task[]
+}
+
+model Task {
+  id              Int    @id @default(autoincrement())
+  weekId          Int
+  week            Week   @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  field           String // 분야: 환경/안전/소방/훈련
+  category        String // 구분
+  taskName        String // 업무명
+  targetCount     Int    @default(0)
+  completedCount  Int    @default(0)
+  achievementRate Float  @default(0)
+  status          String // 완료/진행중/지연/대기
+  notes           String @default("")
+  personInCharge  String @default("")
+}
